@@ -58,3 +58,16 @@ Test can be run using :
 python -m pytest
 ```
 Make sure dev dependencies are installed.
+
+## Publish
+
+First, you need to have `twine` installedd
+```
+pip install --user --upgrade twine
+```
+
+Make sure you have bumped the version number in `setup.py`, then run the following:
+```
+python setup.py sdist bdist_wheel
+python -m twine upload dist/*
+```
