@@ -6,7 +6,7 @@ from fhirstore.schema import SchemaParser
 
 
 class FHIRStore():
-    def __init__(self, client, db_name: str):
+    def __init__(self, client: MongoClient, db_name: str):
         self.db = client[db_name]
 
     def reset(self):
