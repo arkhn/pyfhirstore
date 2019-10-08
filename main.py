@@ -19,7 +19,7 @@ if __name__ == '__main__':
     # create collections
     print("Creating collections...")
     start = timer()
-    store.bootstrap("schema/fhir.schema.json", depth=5)
+    store.bootstrap(depth=5)
     end = timer()
     print(end - start, "seconds")
 
@@ -32,3 +32,5 @@ if __name__ == '__main__':
     })
     end = timer()
     print(end - start, "seconds")
+
+    client.close()
