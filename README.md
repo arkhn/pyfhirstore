@@ -51,3 +51,10 @@ virtualenv .
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
+
+## Test
+Test can be run using :
+```bash
+python -m pytest
+```
+Make sure dev dependencies are installed.
