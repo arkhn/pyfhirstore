@@ -1,5 +1,5 @@
 # fhirstore
-Python library to manipulate fhir resources leveraging mongoDB as storage layer
+Python library to manipulate fhir resources leveraging mongoDB as storage layer.
 
 ## Installation
 
@@ -49,4 +49,5 @@ python main.py
 virtualenv . 
 . ./bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```

@@ -31,9 +31,8 @@ class FHIRStore():
             )
 
     def create(self, resource):
-        try:
-            collection = resource['resourceType']
-            self.db[collection].insert_one(resource)
+        collection = resource['resourceType']
+        self.db[collection].insert_one(resource)
 
     def read(self, resource):
         pass
