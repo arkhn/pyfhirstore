@@ -9,7 +9,7 @@ resource_blacklist = [
     # and is too big (144Mo with depth=5). As the 'Parameters' resource is
     # only used at the API level, it should not be persisted in storage and is
     # therefore blacklisted.
-    'Parameters'
+    "Parameters"
 ]
 
 
@@ -47,9 +47,7 @@ def enforce_id(schema):
     As MongoDB automatically adds an '_id' property when insertign a document
     in the database, we have to update the schema accordingly.
     """
-    schema["properties"]["_id"] = {
-        "bsonType": "objectId"
-    }
+    schema["properties"]["_id"] = {"bsonType": "objectId"}
 
 
 class SchemaParser:
@@ -58,9 +56,8 @@ class SchemaParser:
         Initialized the parsed using the "fhir.schema.json" file
         located in the same directory.
         """
-        schema_path = os.path.join(
-            os.path.dirname(__file__), 'fhir.schema.json')
-        with open(schema_path, 'r') as schemaFile:
+        schema_path = os.path.join(os.path.dirname(__file__), "fhir.schema.json")
+        with open(schema_path, "r") as schemaFile:
             self.schema = json.load(schemaFile)
             self.definitions = self.schema["definitions"]
             self.resources = {
@@ -103,7 +100,8 @@ class SchemaParser:
         print(f"Parsing schema of {resource}...")
         if resource in resource_blacklist:
             raise Exception(
-                f"Resource {resource} is blacklisted! Aborting the mission.")
+                f"Resource {resource} is blacklisted! Aborting the mission."
+            )
 
         r = self.definitions[resource]
         dereferenced_schema = self.resolve(r, depth)
@@ -135,7 +133,7 @@ class SchemaParser:
         # (NB: deepcopy is required, resource will be modified in place)
         elif "$ref" in resource:
             path = os.path.basename(resource["$ref"])
-            return self.resolve(deepcopy(self.definitions[path]), depth-1)
+            return self.resolve(deepcopy(self.definitions[path]), depth - 1)
 
         # resource is an object
         # resolve each of its properties recursively

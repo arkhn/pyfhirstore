@@ -5,7 +5,7 @@ from pymongo import MongoClient
 from fhirstore.schema import SchemaParser
 
 
-class FHIRStore():
+class FHIRStore:
     def __init__(self, client: MongoClient, db_name: str):
         self.db = client[db_name]
 
@@ -23,15 +23,11 @@ class FHIRStore():
         parser = SchemaParser()
         for resource_name, schema in parser.parse(depth=depth):
             ret = self.db.create_collection(
-                resource_name, **{
-                    'validator': {
-                        '$jsonSchema': schema
-                    }
-                }
+                resource_name, **{"validator": {"$jsonSchema": schema}}
             )
 
     def create(self, resource):
-        collection = resource['resourceType']
+        collection = resource["resourceType"]
         self.db[collection].insert_one(resource)
 
     def read(self, resource):
