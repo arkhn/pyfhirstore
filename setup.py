@@ -1,13 +1,19 @@
+import os
 import setuptools
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
+
 requirements = read("requirements.txt").split()
 
 setuptools.setup(
     name="fhirstore",
-    version="0.0.3",
+    version="0.0.4",
     author="Arkhn",
     author_email="contact@arkhn.org",
     description="Manipulating FHIR data leveraging MongoDB as storage layer",
