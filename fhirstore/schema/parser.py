@@ -2,6 +2,8 @@ import os
 import json
 from copy import deepcopy
 
+from jsonschema import validate
+
 # resource_blacklist contains resources that should not be taken into account
 # while parsing the whole schema
 resource_blacklist = [
@@ -56,12 +58,13 @@ class SchemaParser:
         Initialized the parsed using the "fhir.schema.json" file
         located in the same directory.
         """
-        schema_path = os.path.join(os.path.dirname(__file__), "fhir.schema.json")
+        schema_path = os.path.join(
+            os.path.dirname(__file__), "fhir.schema.json")
         with open(schema_path, "r") as schemaFile:
             self.schema = json.load(schemaFile)
             self.definitions = self.schema["definitions"]
             self.resources = {
-                r["$ref"]: os.path.basename(r["$ref"])
+                os.path.basename(r["$ref"]): None
                 for r in self.schema["oneOf"]
                 if os.path.basename(r["$ref"]) not in resource_blacklist
             }
@@ -79,10 +82,12 @@ class SchemaParser:
                     (resource_name, schema)
         """
         if resource is None:
-            for resource in self.resources.values():
-                yield (resource, self.parse_schema(resource, depth))
+            for resource in self.resources.keys():
+                self.resources[resource] = self.parse_schema(resource, depth)
+                yield (resource, self.resources[resource])
         else:
-            yield (resource, self.parse_schema(resource, depth))
+            self.resources[resource] = self.parse_schema(resource, depth)
+            yield (resource, self.resources[resource])
 
     def parse_schema(self, resource: str, depth: int):
         """
@@ -97,7 +102,6 @@ class SchemaParser:
         Returns: The dereferenced schema.
                  (ready to be passed as mongoDB 'validator')
         """
-        print(f"Parsing schema of {resource}...")
         if resource in resource_blacklist:
             raise Exception(
                 f"Resource {resource} is blacklisted! Aborting the mission."
@@ -164,3 +168,20 @@ class SchemaParser:
 
         compatibilize_schema(resource)
         return resource
+
+    def validate(self, resource):
+        """
+        Validates the given resource against its own schema.
+        This is much more efficient than running th validation against the
+        whole FHIR json schema.
+        This function is useful because MongoDB does not provide any feedback
+        about the schema validation error other than "Schema validation failed"
+
+        Args:
+            resource: The object to be validated against the schema.
+                      It is expected to have the "resourceType" property.
+        """
+        schema = self.resources.get(resource["resourceType"])
+        if schema is None:
+            raise Exception("missing schema")
+        validate(instance=resource, schema=schema)

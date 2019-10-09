@@ -1,7 +1,13 @@
+import os
 import setuptools
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
 
 requirements = read("requirements.txt").split()
 
