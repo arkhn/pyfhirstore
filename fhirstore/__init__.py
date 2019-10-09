@@ -1,1 +1,1 @@
-from .fhirstore import FHIRStore
+from .fhirstore import FHIRStore, BadRequestError, NotFoundError
