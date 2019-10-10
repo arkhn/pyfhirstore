@@ -2,14 +2,18 @@ import sys
 import os
 import json
 
-from pymongo import MongoClient
-from pymongo.errors import ServerSelectionTimeoutError, WriteError
+from pymongo import MongoClient, ReturnDocument
+from pymongo.errors import (
+    ServerSelectionTimeoutError,
+    WriteError,
+    OperationFailure,
+)
 from tqdm import tqdm
 
 from fhirstore.schema import SchemaParser
 
 
-class DatabaseError(Exception):
+class NotFoundError(Exception):
     pass
 
 
@@ -48,26 +52,52 @@ class FHIRStore:
                 resource_name, **{"validator": {"$jsonSchema": schema}}
             )
 
-    def create(self, resource):
-        resource_type = resource.get("resourceType")
+    def validate_resource_type(self, resource_type):
         if resource_type is None:
             raise BadRequestError("resourceType is missing in resource")
 
-        if resource_type not in self.db.list_collection_names():
+        elif resource_type not in self.db.list_collection_names():
             raise BadRequestError(
                 f'schema for resource "{resource_type}" is missing in database'
             )
 
+    def create(self, resource):
+        resource_type = resource.get("resourceType")
+        self.validate_resource_type(resource_type)
+
         try:
             res = self.db[resource_type].insert_one(resource)
+            return res.inserted_id
         except WriteError as err:
             self.parser.validate(resource)
 
-    def read(self, resource):
-        pass
+    def read(self, resource_type, resource_id):
+        self.validate_resource_type(resource_type)
 
-    def update(self, resource):
-        pass
+        res = self.db[resource_type].find_one({"id": resource_id})
+        if res is None:
+            raise NotFoundError
+        return res
 
-    def delete(self, resource):
-        pass
+    def update(self, resource_type, resource_id, patch):
+        self.validate_resource_type(resource_type)
+
+        try:
+            updated = self.db[resource_type].find_one_and_update(
+                {"id": resource_id},
+                {"$set": patch},
+                return_document=ReturnDocument.AFTER,
+            )
+            if updated is None:
+                raise NotFoundError
+            return updated
+        except OperationFailure as err:
+            self.parser.validate({**patch, "resourceType": resource_type})
+
+    def delete(self, resource_type, resource_id):
+        self.validate_resource_type(resource_type)
+
+        res = self.db[resource_type].delete_one({"id": resource_id})
+        if res.deleted_count == 0:
+            raise NotFoundError
+        return resource_id

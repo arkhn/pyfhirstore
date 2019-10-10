@@ -1,6 +1,9 @@
+import json
 import pytest
+
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
+
 from fhirstore import FHIRStore
 
 DB_NAME = "fhirstore_test"
@@ -23,4 +26,15 @@ def store():
 
 @pytest.fixture(scope="session")
 def mongo_client():
-    return MongoClient()
+    return MongoClient()[DB_NAME]
+
+
+@pytest.fixture(scope="function")
+def test_patient(mongo_client):
+    with open("test/fixtures/patient-example.json") as f:
+        patient = json.load(f)
+        yield patient
+
+        # delete patient if and "_id" is present
+        if patient.get("_id"):
+            mongo_client["Patient"].delete_one({"_id": patient["_id"]})
