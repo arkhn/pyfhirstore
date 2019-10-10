@@ -28,8 +28,8 @@ class TestFHIRStore:
         """create() raises if resource type is unknown"""
 
         with raises(
-            BadRequestError,
-            match='schema for resource "unknown" is missing in database',
+            NotFoundError,
+            match='unsupported FHIR resource: "unknown"',
         ):
             store.create({"resourceType": "unknown"})
 
@@ -52,8 +52,9 @@ class TestFHIRStore:
     ):
         """create() correctly inserts a document in the database"""
         result = store.create(test_patient)
-        assert isinstance(result, ObjectId), "result must be an objectId"
-        inserted = mongo_client["Patient"].find_one({"_id": result})
+        assert isinstance(
+            result["_id"], ObjectId), "result _id must be an objectId"
+        inserted = mongo_client["Patient"].find_one({"_id": result["_id"]})
         assert inserted == test_patient
 
     ###
@@ -63,8 +64,8 @@ class TestFHIRStore:
         """read() raises if resource type is unknown"""
 
         with raises(
-            BadRequestError,
-            match='schema for resource "unknown" is missing in database',
+            NotFoundError,
+            match='unsupported FHIR resource: "unknown"',
         ):
             store.read("unknown", "864321")
 
@@ -87,8 +88,8 @@ class TestFHIRStore:
         """update() raises if resource type is unknown"""
 
         with raises(
-            BadRequestError,
-            match='schema for resource "unknown" is missing in database',
+            NotFoundError,
+            match='unsupported FHIR resource: "unknown"',
         ):
             store.update("unknown", "864321", {"gender": "other"})
 
@@ -124,8 +125,8 @@ class TestFHIRStore:
         """delete() raises if resource type is unknown"""
 
         with raises(
-            BadRequestError,
-            match='schema for resource "unknown" is missing in database',
+            NotFoundError,
+            match='unsupported FHIR resource: "unknown"',
         ):
             store.delete("unknown", "864321")
 

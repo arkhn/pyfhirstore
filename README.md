@@ -22,12 +22,21 @@ store.reset()
 # Parse json schema and create collections
 store.bootstrap(depth=5)
 
-# Insert resources
+# Create resources
 store.create({
     "resourceType": "Patient",
-    "gender": "male",
+    "id": "pat1",
+    "gender": "male"
 })
 
+# Read resources
+patient = store.read("Patient", "pat1")
+
+# Update resources
+updated_patient = store.update("Patient", "pat1", {"gender": "other"})
+
+# Delete resources
+deleted_patient_id = store.delete("Patient", "pat1")
 ```
 
 ## Bootstrap the database
