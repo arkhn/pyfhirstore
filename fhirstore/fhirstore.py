@@ -39,7 +39,7 @@ class FHIRStore:
         for collection in self.db.list_collection_names():
             self.db.drop_collection(collection)
 
-    def bootstrap(self, depth=4, resource=None, show_progress=True):
+    def bootstrap(self, depth=3, resource=None, show_progress=True):
         """
         Parses the FHIR json-schema and create the collections according to it.
         """

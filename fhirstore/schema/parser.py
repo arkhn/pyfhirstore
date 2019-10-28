@@ -4,32 +4,11 @@ from copy import deepcopy
 
 from jsonschema import validate
 
-# resource_blacklist contains resources that should not be taken into account
-# while parsing the whole schema
-resource_blacklist = [
-    # resource 'Parameters' contains all other resources
-    # and is too big (144Mo with depth=5). As the 'Parameters' resource is
-    # only used at the API level, it should not be persisted in storage and is
-    # therefore blacklisted.
-    "Parameters"
+
+# Do not resolve the following resources when parsing the schema.
+definitions_blacklist = [
+    'ResourceList'  # ResourceList embeds all other resources,
 ]
-
-
-def clean_resource(resource):
-    """
-    Removes unwanted fields from the resource properties.
-    As the following properties result in a way too big schema,
-    we decided to ignore them for now:
-         - extension
-         - modifierExtension
-         - contained
-    """
-    if "extension" in resource["properties"]:
-        del resource["properties"]["extension"]
-    if "modifierExtension" in resource["properties"]:
-        del resource["properties"]["modifierExtension"]
-    if "contained" in resource["properties"]:
-        del resource["properties"]["contained"]
 
 
 def compatibilize_schema(resource):
@@ -66,7 +45,6 @@ class SchemaParser:
             self.resources = {
                 os.path.basename(r["$ref"]): None
                 for r in self.schema["oneOf"]
-                if os.path.basename(r["$ref"]) not in resource_blacklist
             }
 
     def parse(self, resource=None, depth=4):
@@ -102,10 +80,6 @@ class SchemaParser:
         Returns: The dereferenced schema.
                  (ready to be passed as mongoDB 'validator')
         """
-        if resource in resource_blacklist:
-            raise Exception(
-                f"Resource {resource} is blacklisted! Aborting the mission."
-            )
 
         r = self.definitions[resource]
         dereferenced_schema = self.resolve(r, depth)
@@ -129,42 +103,45 @@ class SchemaParser:
 
         """
         # stop resolving references if maximal depth is reached
+        # the reference is removed from the resource but all other
+        # properties are kept.
         if depth == 0 and "$ref" in resource:
-            return None
+            del resource["$ref"]
+            return resource
 
         # resource is a reference
-        # resolve its definition
+        # resolve its definition if not blacklisted.
         # (NB: deepcopy is required, resource will be modified in place)
         elif "$ref" in resource:
             path = os.path.basename(resource["$ref"])
-            return self.resolve(deepcopy(self.definitions[path]), depth - 1)
+            if path not in definitions_blacklist:
+                return self.resolve(
+                    deepcopy(self.definitions[path]), depth - 1)
+            del resource["$ref"]
 
         # resource is an object
         # resolve each of its properties recursively
         elif "properties" in resource:
-            clean_resource(resource)
             for k in list(resource["properties"].keys()):
-                resolved = self.resolve(resource["properties"][k], depth)
-                if resolved:
-                    resource["properties"][k] = resolved
+                # only one level of recursion is allowed for extensions
+                if k == "extension" or k == "modifierExtension":
+                    resource["properties"][k] = self.resolve(
+                        resource["properties"][k], depth if depth < 1 else 1)
                 else:
-                    del resource["properties"][k]
+                    resource["properties"][k] = self.resolve(
+                        resource["properties"][k], depth)
 
         # resource is an array
         # resolve its "items" property
         elif "items" in resource:
             resource["items"] = self.resolve(resource["items"], depth)
-            if resource["items"] is None:
-                return None
 
         # resource is a "oneOf" object
         # resolve each of its "oneOf" properties
         elif "oneOf" in resource:
-            resource["oneOf"] = list(
-                map(lambda x: self.resolve(x, depth), resource["oneOf"])
-            )
-            if len(list(filter(lambda x: x, resource["oneOf"]))) == 0:
-                return None
+            resource["oneOf"] = [
+                self.resolve(x, depth) for x in resource["oneOf"]
+            ]
 
         compatibilize_schema(resource)
         return resource
@@ -181,7 +158,9 @@ class SchemaParser:
             resource: The object to be validated against the schema.
                       It is expected to have the "resourceType" property.
         """
+        # TODO: this does not work is .bootstrap() has not been called before
+        # (and it sucks)
         schema = self.resources.get(resource["resourceType"])
         if schema is None:
-            raise Exception("missing schema")
+            raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
