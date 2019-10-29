@@ -62,6 +62,9 @@ class FHIRStore:
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
+        """
+        Loads the existing resources schema from the database.
+        """
         collections = self.db.list_collection_names()
 
         if show_progress:
@@ -77,7 +80,6 @@ class FHIRStore:
             json_schema = self.db.get_collection(
                 collection).options()['validator']['$jsonSchema']
             self.resources[collection] = json_schema
-        return
 
     def validate_resource_type(self, resource_type):
         if resource_type is None:
@@ -127,7 +129,36 @@ class FHIRStore:
             raise NotFoundError
         return res
 
-    def update(self, resource_type, resource_id, patch):
+    def update(self, resource_type, resource_id, resource):
+        """
+        Update a resource given its type, id and a resource. It applies
+        a "replace" operation, therefore the resource will be overriden.
+        The structure of the updated resource will  be checked against
+        its json-schema FHIR definition.
+
+        Args:
+            - resource_type: type of the resource (eg: 'Patient')
+            - id: The expected id is the resource 'id', not the
+                  internal database identifier ('_id').
+            - resource: The updated resource.
+
+        Returns: The updated resource.
+        """
+        self.validate_resource_type(resource_type)
+
+        try:
+            updated = self.db[resource_type].find_one_and_replace(
+                {"id": resource_id},
+                resource,
+                return_document=ReturnDocument.AFTER,
+            )
+            if updated is None:
+                raise NotFoundError
+            return updated
+        except OperationFailure as err:
+            self.validate(resource)
+
+    def patch(self, resource_type, resource_id, patch):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -139,6 +170,7 @@ class FHIRStore:
             - resource_type: type of the resource (eg: 'Patient')
             - id: The expected id is the resource 'id', not the
                   internal database identifier ('_id').
+            - patch: The patch to be applied on the resource.
 
         Returns: The updated resource.
         """
@@ -154,7 +186,8 @@ class FHIRStore:
                 raise NotFoundError
             return updated
         except OperationFailure as err:
-            self.validate({**patch, "resourceType": resource_type})
+            self.read(resource_type, resource_id)
+            self.validate({**self.resource, **patch})
 
     def delete(self, resource_type, resource_id):
         """
