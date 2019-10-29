@@ -9,6 +9,7 @@ from pymongo.errors import (
     OperationFailure,
 )
 from tqdm import tqdm
+from jsonschema import validate
 
 from fhirstore.schema import SchemaParser
 
@@ -31,6 +32,7 @@ class FHIRStore:
     def __init__(self, client: MongoClient, db_name: str):
         self.db = client[db_name]
         self.parser = SchemaParser()
+        self.resources = {}
 
     def reset(self):
         """
@@ -38,6 +40,7 @@ class FHIRStore:
         """
         for collection in self.db.list_collection_names():
             self.db.drop_collection(collection)
+        self.resources = {}
 
     def bootstrap(self, depth=3, resource=None, show_progress=True):
         """
@@ -48,7 +51,6 @@ class FHIRStore:
             tqdm.write("\n", end="")
             resources = tqdm(
                 resources,
-                total=len(self.parser.resources),
                 leave=False,
                 file=sys.stdout,
                 desc="Bootstrapping collections...",
@@ -57,12 +59,31 @@ class FHIRStore:
             ret = self.db.create_collection(
                 resource_name, **{"validator": {"$jsonSchema": schema}}
             )
+            self.resources[resource_name] = schema
+
+    def resume(self, show_progress=True):
+        collections = self.db.list_collection_names()
+
+        if show_progress:
+            tqdm.write("\n", end="")
+            collections = tqdm(
+                collections,
+                leave=False,
+                file=sys.stdout,
+                desc="Loading collections from database...",
+            )
+
+        for collection in collections:
+            json_schema = self.db.get_collection(
+                collection).options()['validator']['$jsonSchema']
+            self.resources[collection] = json_schema
+        return
 
     def validate_resource_type(self, resource_type):
         if resource_type is None:
             raise BadRequestError("resourceType is missing in resource")
 
-        elif resource_type not in self.db.list_collection_names():
+        elif resource_type not in self.resources:
             raise NotFoundError(
                 f'unsupported FHIR resource: "{resource_type}"'
             )
@@ -86,7 +107,7 @@ class FHIRStore:
             res = self.db[resource_type].insert_one(resource)
             return {**resource, "_id": res.inserted_id}
         except WriteError as err:
-            self.parser.validate(resource)
+            self.validate(resource)
 
     def read(self, resource_type, resource_id):
         """
@@ -133,7 +154,7 @@ class FHIRStore:
                 raise NotFoundError
             return updated
         except OperationFailure as err:
-            self.parser.validate({**patch, "resourceType": resource_type})
+            self.validate({**patch, "resourceType": resource_type})
 
     def delete(self, resource_type, resource_id):
         """
@@ -152,3 +173,20 @@ class FHIRStore:
         if res.deleted_count == 0:
             raise NotFoundError
         return resource_id
+
+    def validate(self, resource):
+        """
+        Validates the given resource against its own schema.
+        This is much more efficient than running th validation against the
+        whole FHIR json schema.
+        This function is useful because MongoDB does not provide any feedback
+        about the schema validation error other than "Schema validation failed"
+
+        Args:
+            resource: The object to be validated against the schema.
+                      It is expected to have the "resourceType" property.
+        """
+        schema = self.resources.get(resource["resourceType"])
+        if schema is None:
+            raise Exception(f"missing schema for resource {resource}")
+        validate(instance=resource, schema=schema)

@@ -21,6 +21,9 @@ store.reset()
 
 # Parse json schema and create collections
 store.bootstrap(depth=5)
+# OR
+# Get existing collections from the database
+store.resume(depth=5)
 
 # Create resources
 store.create({

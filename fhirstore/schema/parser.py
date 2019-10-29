@@ -2,8 +2,6 @@ import os
 import json
 from copy import deepcopy
 
-from jsonschema import validate
-
 
 # Do not resolve the following resources when parsing the schema.
 definitions_blacklist = [
@@ -42,10 +40,10 @@ class SchemaParser:
         with open(schema_path, "r") as schemaFile:
             self.schema = json.load(schemaFile)
             self.definitions = self.schema["definitions"]
-            self.resources = {
-                os.path.basename(r["$ref"]): None
+            self.resources = [
+                os.path.basename(r["$ref"])
                 for r in self.schema["oneOf"]
-            }
+            ]
 
     def parse(self, resource=None, depth=4):
         """
@@ -60,12 +58,12 @@ class SchemaParser:
                     (resource_name, schema)
         """
         if resource is None:
-            for resource in self.resources.keys():
-                self.resources[resource] = self.parse_schema(resource, depth)
-                yield (resource, self.resources[resource])
+            for resource in self.resources:
+                schema = self.parse_schema(resource, depth)
+                yield (resource, schema)
         else:
-            self.resources[resource] = self.parse_schema(resource, depth)
-            yield (resource, self.resources[resource])
+            schema = self.parse_schema(resource, depth)
+            yield (resource, schema)
 
     def parse_schema(self, resource: str, depth: int):
         """
@@ -145,22 +143,3 @@ class SchemaParser:
 
         compatibilize_schema(resource)
         return resource
-
-    def validate(self, resource):
-        """
-        Validates the given resource against its own schema.
-        This is much more efficient than running th validation against the
-        whole FHIR json schema.
-        This function is useful because MongoDB does not provide any feedback
-        about the schema validation error other than "Schema validation failed"
-
-        Args:
-            resource: The object to be validated against the schema.
-                      It is expected to have the "resourceType" property.
-        """
-        # TODO: this does not work is .bootstrap() has not been called before
-        # (and it sucks)
-        schema = self.resources.get(resource["resourceType"])
-        if schema is None:
-            raise Exception(f"missing schema for resource {resource}")
-        validate(instance=resource, schema=schema)
