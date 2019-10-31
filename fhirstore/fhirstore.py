@@ -29,10 +29,14 @@ class BadRequestError(Exception):
 
 
 class FHIRStore:
-    def __init__(self, client: MongoClient, db_name: str):
+    def __init__(
+            self,
+            client: MongoClient,
+            db_name: str,
+            resources: dict = {}):
         self.db = client[db_name]
         self.parser = SchemaParser()
-        self.resources = {}
+        self.resources = resources
 
     def reset(self):
         """
@@ -51,7 +55,6 @@ class FHIRStore:
             tqdm.write("\n", end="")
             resources = tqdm(
                 resources,
-                leave=False,
                 file=sys.stdout,
                 desc="Bootstrapping collections...",
             )
@@ -71,7 +74,6 @@ class FHIRStore:
             tqdm.write("\n", end="")
             collections = tqdm(
                 collections,
-                leave=False,
                 file=sys.stdout,
                 desc="Loading collections from database...",
             )
