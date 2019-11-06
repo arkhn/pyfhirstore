@@ -5567,6 +5567,10 @@
           },
           "type": "array"
         },
+        "_profile": {
+          "description": "Extensions for profile",
+          "$ref": "#/definitions/Element"
+        },
         "targetProfile": {
           "description": "Used when the type is \"Reference\" or \"canonical\", and identifies a profile structure or implementation Guide that applies to the target of the reference this element refers to. If any profiles are specified, then the content must conform to at least one of them. The URL can be a local reference - to a contained StructureDefinition, or a reference to another StructureDefinition or Implementation Guide by a canonical URL. When an implementation guide is specified, the target resource SHALL conform to at least one profile defined in the implementation guide.",
           "items": {
@@ -51762,6 +51766,10 @@
         "baseDefinition": {
           "description": "An absolute URI that is the base structure from which this type is derived, either by specialization or constraint.",
           "$ref": "#/definitions/canonical"
+        },
+        "_baseDefinition": {
+          "description": "Extensions for baseDefinition",
+          "$ref": "#/definitions/Element"
         },
         "derivation": {
           "description": "How the type relates to the baseDefinition.",
