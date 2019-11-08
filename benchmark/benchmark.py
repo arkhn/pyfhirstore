@@ -55,7 +55,7 @@ def download_resources():
 download_resources()
 client = MongoClient()
 store = FHIRStore(client, "benchmark")
-print("Removing previous collections")
+# print("Removing previous collections")
 store.resume()
 # store.reset()
 # store.bootstrap(depth=3)
