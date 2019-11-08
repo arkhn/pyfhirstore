@@ -71,6 +71,32 @@ python -m pytest
 ```
 Make sure dev dependencies are installed.
 
+## Benchmark
+A benchmark based on example FHIR resources publicly available at can be run using :
+```bash
+python benchmark/benchmark.py
+```
+Note that you will need to have a MongoDB up in order for the benchmark to run. You can use the docker-compose file of this repository by running `docker-compose up` before launching the benchmark.
+
+On a machine with 16GB RAM and an i7 (2.5GHz) processor, the results of the benchamrk were:
+```
+--- WRITES ---
+insertions per second (on average): 267.17
+average: 3.74 milliseconds
+median: 1.66 milliseconds
+min: 1.07 milliseconds
+max: 724.65 milliseconds
+spread: 0.00028004697751347234
+
+--- READS ---
+reads per second (on average): 378.93
+average: 2.63 milliseconds
+median: 1.50 milliseconds
+min: 0.88 milliseconds
+max: 481.18 milliseconds
+spread: 0.0002154728657872756
+```
+
 ## Publish
 
 First, you need to have `twine` installedd
