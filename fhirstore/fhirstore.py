@@ -4,7 +4,7 @@ from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import WriteError, OperationFailure
 from tqdm import tqdm
 from jsonschema import validate
-
+from elasticsearch import Elasticsearch
 from fhirstore.schema import SchemaParser
 
 
@@ -25,7 +25,13 @@ class BadRequestError(Exception):
 
 
 class FHIRStore:
-    def __init__(self, client: MongoClient, db_name: str, resources: dict = {}):
+    def __init__(
+            self,
+            client: MongoClient,
+            client_es: Elasticsearch,
+            db_name: str,
+            resources: dict = {}):
+        self.es = client_es
         self.db = client[db_name]
         self.parser = SchemaParser()
         self.resources = resources
@@ -204,3 +210,42 @@ class FHIRStore:
         if schema is None:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
+
+    def search(self, resource, params):
+        """
+        Searchs for params inside a resource. 
+        Returns a bundle of items, as required by FHIR standards. 
+        First version is a simple search of the field gender. 
+
+        Args: 
+            - resource: FHIR resource (eg: 'Patient')
+            - params: search parameters (eg: 'male' or 'female')
+        
+        Returns: A bundle with the results of the search, as required by FHIR search standard.  
+        """
+        #self.validate_resource_type(resource)
+
+        # TODO: add other types of queries and fields, using multi-match 
+        # TODO: require multiple fields at the same time (name=jane&age>25) 
+        # Specify the body of the request in JSON
+        body={
+            "query": { 
+                "match": { 
+                    "gender": params
+                }
+            }    
+        }
+
+        # Use the search function provided by the python wrapper for Elasticsearch
+        r = self.es.search(body=body,index=f"fhirstore.{resource}")
+
+        # Transform the output of the ESearch into a bundle, the FHIR standard for a search output.
+        pr = {
+            "resource_type" : "Bundle",
+            "items" : r["hits"]["hits"]
+        }
+        return pr
+
+
+
+
