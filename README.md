@@ -97,6 +97,25 @@ max: 481.18 milliseconds
 spread: 0.0002154728657872756
 ```
 
+On the same machine, here are the results for the same benchmark using a different library, [fhirbase](https://github.com/fhirbase/fhirbase.py). The latter relies on postgreSQL rather than MongoDB as its storage layer. Also, it only supports FHIR resources 3.3.0 and below.
+```
+--- WRITES ---
+insertions per second (on average): 152.38
+average: 6.56 milliseconds
+median: 4.43 milliseconds
+min: 3.08 milliseconds
+max: 158.88 milliseconds
+spread: 7.568139030481407e-05
+
+--- READS ---
+reads per second (on average): 261.07
+average: 3.83 milliseconds
+median: 3.03 milliseconds
+min: 2.17 milliseconds
+max: 102.06 milliseconds
+spread: 1.4565324857334904e-05
+```
+
 ## Publish
 
 First, you need to have `twine` installedd
