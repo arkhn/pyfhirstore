@@ -1,4 +1,4 @@
-![](https://github.com/arkhn/pyfhirstore/workflows/.github/workflows/main.yml/badge.svg)
+![](https://github.com/arkhn/pyfhirstore/workflows/fhirstore/badge.svg)
 
 
 # fhirstore
