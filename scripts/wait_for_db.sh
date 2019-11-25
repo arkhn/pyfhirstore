@@ -3,7 +3,7 @@
 
 i=0
 while [ $i -lt 15 ]; do
-  if mongo --eval "quit()" > /dev/null; then break; fi
+  if docker run mongo:latest mongo --eval "quit()" > /dev/null; then break; fi
   echo "Mongo is unavailable - sleeping" >&2
   sleep 1
   i=$((i+1))
