@@ -1,1 +1,1 @@
-from .parser import SchemaParser
+from .parser import SchemaParser  # noqa
