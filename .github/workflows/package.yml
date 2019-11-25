@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     strategy:
       max-parallel: 2
       matrix:
@@ -18,7 +18,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          apt-get install mongo
+          # Mongo client
+          wget -qO - https://www.mongodb.org/static/pgp/server-4.2.asc | sudo apt-key add -
+          echo "deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu bionic/mongodb-org/4.2 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-4.2.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-org-shell
+          # Python dependencies
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
@@ -32,4 +37,4 @@ jobs:
         run: |
           docker-compose up -d
           ./scripts/wait_for_db.sh
-          pytest -svv test/
+          python -m pytest -svvv test/
