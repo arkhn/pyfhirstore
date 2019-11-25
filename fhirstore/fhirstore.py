@@ -1,13 +1,7 @@
 import sys
-import os
-import json
 
 from pymongo import MongoClient, ReturnDocument
-from pymongo.errors import (
-    ServerSelectionTimeoutError,
-    WriteError,
-    OperationFailure,
-)
+from pymongo.errors import WriteError, OperationFailure
 from tqdm import tqdm
 from jsonschema import validate
 
@@ -18,6 +12,7 @@ class NotFoundError(Exception):
     """
     NotFoundError is returned when a resource was not found in the database.
     """
+
     pass
 
 
@@ -25,15 +20,12 @@ class BadRequestError(Exception):
     """
     BadRequestError is returned when the client request could not be processed.
     """
+
     pass
 
 
 class FHIRStore:
-    def __init__(
-            self,
-            client: MongoClient,
-            db_name: str,
-            resources: dict = {}):
+    def __init__(self, client: MongoClient, db_name: str, resources: dict = {}):
         self.db = client[db_name]
         self.parser = SchemaParser()
         self.resources = resources
@@ -53,15 +45,11 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(
-                resources,
-                file=sys.stdout,
-                desc="Bootstrapping collections...",
-            )
+            resources = tqdm(resources, file=sys.stdout,
+                             desc="Bootstrapping collections...")
         for resource_name, schema in resources:
-            ret = self.db.create_collection(
-                resource_name, **{"validator": {"$jsonSchema": schema}}
-            )
+            self.db.create_collection(
+                resource_name, **{"validator": {"$jsonSchema": schema}})
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
@@ -73,14 +61,12 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections,
-                file=sys.stdout,
-                desc="Loading collections from database...",
+                collections, file=sys.stdout, desc="Loading collections from database..."
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(
-                collection).options()['validator']['$jsonSchema']
+            json_schema = self.db.get_collection(collection).options()[
+                "validator"]["$jsonSchema"]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -89,8 +75,7 @@ class FHIRStore:
 
         elif resource_type not in self.resources:
             raise NotFoundError(
-                f'unsupported FHIR resource: "{resource_type}"'
-            )
+                f'unsupported FHIR resource: "{resource_type}"')
 
     def create(self, resource):
         """
@@ -110,7 +95,7 @@ class FHIRStore:
         try:
             res = self.db[resource_type].insert_one(resource)
             return {**resource, "_id": res.inserted_id}
-        except WriteError as err:
+        except WriteError:
             self.validate(resource)
 
     def read(self, resource_type, resource_id):
@@ -150,14 +135,12 @@ class FHIRStore:
 
         try:
             updated = self.db[resource_type].find_one_and_replace(
-                {"id": resource_id},
-                resource,
-                return_document=ReturnDocument.AFTER,
+                {"id": resource_id}, resource, return_document=ReturnDocument.AFTER
             )
             if updated is None:
                 raise NotFoundError
             return updated
-        except OperationFailure as err:
+        except OperationFailure:
             self.validate(resource)
 
     def patch(self, resource_type, resource_id, patch):
@@ -180,16 +163,14 @@ class FHIRStore:
 
         try:
             updated = self.db[resource_type].find_one_and_update(
-                {"id": resource_id},
-                {"$set": patch},
-                return_document=ReturnDocument.AFTER,
+                {"id": resource_id}, {"$set": patch}, return_document=ReturnDocument.AFTER
             )
             if updated is None:
                 raise NotFoundError
             return updated
-        except OperationFailure as err:
-            self.read(resource_type, resource_id)
-            self.validate({**self.resource, **patch})
+        except OperationFailure:
+            resource = self.read(resource_type, resource_id)
+            self.validate({**resource, **patch})
 
     def delete(self, resource_type, resource_id):
         """

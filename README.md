@@ -1,3 +1,6 @@
+![](https://github.com/arkhn/pyfhirstore/workflows/Tests/badge.svg)
+
+
 # fhirstore
 Python library to manipulate fhir resources leveraging mongoDB as storage layer.
 

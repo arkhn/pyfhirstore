@@ -4,9 +4,7 @@ from copy import deepcopy
 
 
 # Do not resolve the following resources when parsing the schema.
-definitions_blacklist = [
-    'ResourceList'  # ResourceList embeds all other resources,
-]
+definitions_blacklist = ["ResourceList"]  # ResourceList embeds all other resources,
 
 
 def compatibilize_schema(resource):
@@ -35,15 +33,11 @@ class SchemaParser:
         Initialized the parsed using the "fhir.schema.json" file
         located in the same directory.
         """
-        schema_path = os.path.join(
-            os.path.dirname(__file__), "fhir.schema.json")
+        schema_path = os.path.join(os.path.dirname(__file__), "fhir.schema.json")
         with open(schema_path, "r") as schemaFile:
             self.schema = json.load(schemaFile)
             self.definitions = self.schema["definitions"]
-            self.resources = [
-                os.path.basename(r["$ref"])
-                for r in self.schema["oneOf"]
-            ]
+            self.resources = [os.path.basename(r["$ref"]) for r in self.schema["oneOf"]]
 
     def parse(self, resource=None, depth=4):
         """
@@ -113,8 +107,7 @@ class SchemaParser:
         elif "$ref" in resource:
             path = os.path.basename(resource["$ref"])
             if path not in definitions_blacklist:
-                return self.resolve(
-                    deepcopy(self.definitions[path]), depth - 1)
+                return self.resolve(deepcopy(self.definitions[path]), depth - 1)
             del resource["$ref"]
 
         # resource is an object
@@ -124,10 +117,10 @@ class SchemaParser:
                 # only one level of recursion is allowed for extensions
                 if k == "extension" or k == "modifierExtension":
                     resource["properties"][k] = self.resolve(
-                        resource["properties"][k], depth if depth < 1 else 1)
+                        resource["properties"][k], depth if depth < 1 else 1
+                    )
                 else:
-                    resource["properties"][k] = self.resolve(
-                        resource["properties"][k], depth)
+                    resource["properties"][k] = self.resolve(resource["properties"][k], depth)
 
         # resource is an array
         # resolve its "items" property
@@ -137,9 +130,7 @@ class SchemaParser:
         # resource is a "oneOf" object
         # resolve each of its "oneOf" properties
         elif "oneOf" in resource:
-            resource["oneOf"] = [
-                self.resolve(x, depth) for x in resource["oneOf"]
-            ]
+            resource["oneOf"] = [self.resolve(x, depth) for x in resource["oneOf"]]
 
         compatibilize_schema(resource)
         return resource
