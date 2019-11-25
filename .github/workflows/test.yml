@@ -1,9 +1,10 @@
-name: Tests
+name: Python library
 
 on: [push]
 
 jobs:
   build:
+    name: Lint and test
     runs-on: ubuntu-18.04
     strategy:
       max-parallel: 2
@@ -40,9 +41,10 @@ jobs:
           python -m pytest -svvv test/
 
   publish:
+    name: Build and publish
     runs-on: ubuntu-18.04
     needs: build
-    if: github.ref == 'master' && success()
+    if: github.ref == 'master'
     steps:
       - uses: actions/checkout@v1
       - name: Set up Python
