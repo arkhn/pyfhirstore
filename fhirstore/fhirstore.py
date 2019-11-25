@@ -169,8 +169,8 @@ class FHIRStore:
                 raise NotFoundError
             return updated
         except OperationFailure:
-            self.read(resource_type, resource_id)
-            self.validate({**self.resource, **patch})
+            resource = self.read(resource_type, resource_id)
+            self.validate({**resource, **patch})
 
     def delete(self, resource_type, resource_id):
         """
