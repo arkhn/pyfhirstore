@@ -1,5 +1,12 @@
 import sys
+<<<<<<< HEAD
+=======
+import os
+import re
+import json
+>>>>>>> text search attempts
 
+from collections import defaultdict
 from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import WriteError, OperationFailure
 from tqdm import tqdm
@@ -211,41 +218,94 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, resource, params):
+    def search(self, resourceType, params):
         """
-        Searchs for params inside a resource. 
-        Returns a bundle of items, as required by FHIR standards. 
-        First version is a simple search of the field gender. 
+        Searchs for params inside a resource.
+        Returns a bundle of items, as required by FHIR standards.
+        First version is a simple search of the field gender.
 
-        Args: 
+        Args:
             - resource: FHIR resource (eg: 'Patient')
             - params: search parameters (eg: 'male' or 'female')
-        
-        Returns: A bundle with the results of the search, as required by FHIR search standard.  
+        Returns: A bundle with the results of the search, as required by FHIR
+        search standard.
         """
-        #self.validate_resource_type(resource)
+        #  print(self.resources["Patient"])
+        #  self.validate_resource_type(resource)
 
-        # TODO: add other types of queries and fields, using multi-match 
-        # TODO: require multiple fields at the same time (name=jane&age>25) 
-        # Specify the body of the request in JSON
-        body={
-            "query": { 
-                "match": { 
-                    "gender": params
+        parsed_params = defaultdict(dict)
+
+        # prefix from fhir to elastic search
+        number_prefix_matching = {
+            "gt": "gt",
+            "ge": "gte",
+            "lt": "lt",
+            "le": "lte"
+        }
+
+        for key,value in params:
+            # parse numbers
+            # TODO: handle sa eb ap eq ne prefixes
+            is_number = False
+            m = re.search(
+                # r"^(eq|ne|gt|lt|ge|le|sa|eb|ap):(.*)$",
+                r"(gt|lt|ge|le)(.*)$",
+                value
+            )
+
+            if len(m) == 2:
+                is_number = True
+                # Possible error
+                parsed_params["match"][key] = key
+                parsed_params["match"][value] = {
+                    number_prefix_matching[m[0]]: m[1]
                 }
-            }    
+
+            # parse strings
+            is_string = False
+            m = re.search(
+                r"^(.*):(contains|exact)$",
+                key
+            )
+
+            if len(m) == 2:
+                is_string = True
+                if m[1] == "contains":
+                    parsed_params["match"][m[0]] = {
+                        prefix_matching[m[0]]: m[1]
+                    }
+                    # Possible error
+                    parsed_params["match"][value] = value
+
+                elif m[1] == "exact":
+                    # TODO
+                    parsed_params["exact"][m[0]] = {
+                        prefix_matching[m[0]]: m[1]
+                    }
+                    parsed_params["exact"][value] = value
+
+            # default case
+            if not (is_number or is_string):
+                parsed_params["match"][key] = params[key]
+
+                
+
+        # TODO: add other types of queries and fields, using multi-match
+        # TODO: require multiple fields at the same time (name=jane&age>25)
+        # Specify the body of the request in JSON
+        body = {
+            "query": parsed_params
         }
 
-        # Use the search function provided by the python wrapper for Elasticsearch
-        r = self.es.search(body=body,index=f"fhirstore.{resource}")
+        # Use the search function provided by the python wrapper for
+        # Elasticsearch
+        hits = self.es.search(body=body, index=f"fhirstore.{resourceType}")
 
-        # Transform the output of the ESearch into a bundle, the FHIR standard for a search output.
-        pr = {
-            "resource_type" : "Bundle",
-            "items" : r["hits"]["hits"]
+        # Transform the output of the ESearch into a bundle, the FHIR standard
+        # for a search output.
+        response = {
+            "resource_type": "Bundle",
+            "items": hits["hits"]["hits"]
         }
-        return pr
 
-
-
-
+        return response

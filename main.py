@@ -3,19 +3,24 @@ import time
 import json
 from timeit import default_timer as timer
 from pymongo import MongoClient
+from elasticsearch import Elasticsearch
 
 from fhirstore import FHIRStore
 
 if __name__ == '__main__':
     client = MongoClient(username="arkhn", password="SuperSecurePassword2019")
 
+    client_es = Elasticsearch(
+            ['http://localhost:9200'],
+            http_auth =("elastic", "SuperSecurePassword2019")
+    )
     # uncomment the next 2 following line if you wish to activate
     # the replication mode of mongo (required by monstache)
 
     # res = client.admin.command("replSetInitiate", None)
     # time.sleep(1)
 
-    store = FHIRStore(client, "fhirstore")
+    store = FHIRStore(client, client_es, "fhirstore")
 
     # uncomment the following line if mongo already has initialised
     # collections and you don't want to bootstrap them all
@@ -55,4 +60,9 @@ if __name__ == '__main__':
             print(end - start, "seconds")
             total += (end-start)
     print(f"Inserted {len(json_files)} documents in {total} seconds")
+    
+    # srch = store.search(resource='patient',params="male") 
+    
+    # print(srch)
+
     client.close()
