@@ -26,9 +26,10 @@ services:
 
   monstache:
     image: rwynn/monstache:6.2.5
-    command: -f /opt/moustache.toml
+    command: -f /opt/monstache.toml
+    restart: always
     volumes:
-      - ./moustache.toml:/opt/moustache.toml
+      - ./monstache.toml:/opt/monstache.toml
     depends_on:
       - mongo
       - elasticsearch
