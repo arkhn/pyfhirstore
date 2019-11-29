@@ -1,10 +1,7 @@
 import sys
-<<<<<<< HEAD
-=======
 import os
 import re
 import json
->>>>>>> text search attempts
 
 from collections import defaultdict
 from pymongo import MongoClient, ReturnDocument
@@ -33,11 +30,12 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-            self,
-            client: MongoClient,
-            client_es: Elasticsearch,
-            db_name: str,
-            resources: dict = {}):
+        self,
+        client: MongoClient,
+        client_es: Elasticsearch,
+        db_name: str,
+        resources: dict = {},
+    ):
         self.es = client_es
         self.db = client[db_name]
         self.parser = SchemaParser()
@@ -58,9 +56,19 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
+<<<<<<< HEAD
             resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
         for resource_name, schema in resources:
             self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
+=======
+            resources = tqdm(
+                resources, file=sys.stdout, desc="Bootstrapping collections..."
+            )
+        for resource_name, schema in resources:
+            self.db.create_collection(
+                resource_name, **{"validator": {"$jsonSchema": schema}}
+            )
+>>>>>>> add an ElasticSearch client, and basic full text search queries, compliant to FHIR search standards
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
@@ -72,11 +80,19 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections, file=sys.stdout, desc="Loading collections from database..."
+                collections,
+                file=sys.stdout,
+                desc="Loading collections from database...",
             )
 
         for collection in collections:
+<<<<<<< HEAD
             json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
+=======
+            json_schema = self.db.get_collection(collection).options()["validator"][
+                "$jsonSchema"
+            ]
+>>>>>>> add an ElasticSearch client, and basic full text search queries, compliant to FHIR search standards
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -174,7 +190,9 @@ class FHIRStore:
 
         try:
             updated = self.db[resource_type].find_one_and_update(
-                {"id": resource_id}, {"$set": patch}, return_document=ReturnDocument.AFTER
+                {"id": resource_id},
+                {"$set": patch},
+                return_document=ReturnDocument.AFTER,
             )
             if updated is None:
                 raise NotFoundError
@@ -222,11 +240,10 @@ class FHIRStore:
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
-        First version is a simple search of the field gender.
 
         Args:
             - resource: FHIR resource (eg: 'Patient')
-            - params: search parameters (eg: 'male' or 'female')
+            - params: search parameters of the type (key, value) eg: 'gender,female'
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
@@ -235,77 +252,57 @@ class FHIRStore:
 
         parsed_params = defaultdict(dict)
 
-        # prefix from fhir to elastic search
-        number_prefix_matching = {
-            "gt": "gt",
-            "ge": "gte",
-            "lt": "lt",
-            "le": "lte"
-        }
+        # translate the prefix from fhir standard to elastic search standard
+        number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
 
-        for key,value in params:
+        for key, value in params.items():
             # parse numbers
             # TODO: handle sa eb ap eq ne prefixes
             is_number = False
             m = re.search(
                 # r"^(eq|ne|gt|lt|ge|le|sa|eb|ap):(.*)$",
-                r"(gt|lt|ge|le)(.*)$",
-                value
+                r"^(gt|lt|ge|le)([0-9].*)$",
+                value,
             )
 
-            if len(m) == 2:
+            if m:
                 is_number = True
                 # Possible error
-                parsed_params["match"][key] = key
-                parsed_params["match"][value] = {
-                    number_prefix_matching[m[0]]: m[1]
+                # ES Query of type match
+                parsed_params["range"][key] = {
+                    number_prefix_matching[m.group(1)]: m.group(2)
                 }
-
             # parse strings
             is_string = False
-            m = re.search(
-                r"^(.*):(contains|exact)$",
-                key
-            )
+            m = re.search(r"^(.*):(contains|exact)$", key)
 
-            if len(m) == 2:
+            if m:
                 is_string = True
-                if m[1] == "contains":
-                    parsed_params["match"][m[0]] = {
-                        prefix_matching[m[0]]: m[1]
-                    }
-                    # Possible error
-                    parsed_params["match"][value] = value
 
-                elif m[1] == "exact":
-                    # TODO
-                    parsed_params["exact"][m[0]] = {
-                        prefix_matching[m[0]]: m[1]
-                    }
-                    parsed_params["exact"][value] = value
+                if m.group(2) == "contains":
+                    parsed_params["query_string"]["query"] = f"*{value}*"
+                    parsed_params["query_string"]["default_field"] = m.group(1)
+
+                elif m.group(2) == "exact":
+                    parsed_params["term"][m.group(1)] = value
+
+            # TODO: parse tokens
 
             # default case
             if not (is_number or is_string):
                 parsed_params["match"][key] = params[key]
 
-                
-
-        # TODO: add other types of queries and fields, using multi-match
+        # TODO: add other types of items queried: token, boolean, URI
         # TODO: require multiple fields at the same time (name=jane&age>25)
         # Specify the body of the request in JSON
-        body = {
-            "query": parsed_params
-        }
-
+        body = {"query": {k: v for k, v in parsed_params.items()}}
+        print(body)
         # Use the search function provided by the python wrapper for
         # Elasticsearch
         hits = self.es.search(body=body, index=f"fhirstore.{resourceType}")
 
         # Transform the output of the ESearch into a bundle, the FHIR standard
         # for a search output.
-        response = {
-            "resource_type": "Bundle",
-            "items": hits["hits"]["hits"]
-        }
+        response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
 
         return response
