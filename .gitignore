@@ -1,3 +1,4 @@
+.env.dev.default
 examples/
 examples.zip
 schema/resources/
