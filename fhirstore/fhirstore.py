@@ -10,6 +10,7 @@ from tqdm import tqdm
 from jsonschema import validate
 from elasticsearch import Elasticsearch
 from fhirstore.schema import SchemaParser
+from fhirstore.schema.search.search_methods import element_search
 
 
 class NotFoundError(Exception):
@@ -243,66 +244,42 @@ class FHIRStore:
 
         Args:
             - resource: FHIR resource (eg: 'Patient')
-            - params: search parameters of the type (key, value) eg: 'gender,female'
+            - params: search parameters as returned by the API. For a simple
+            search, the parameters should be of the type {"key": "value"}
+            eg: {"gender":"female"}, with modifiers {"address.city:exact":"Paris"}.
+            For a composite search, the params should be a payload of the form:
+            {"logical": "AND", "body": {"key1": "value1", "key2": "value2"} }.
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
+        res = []
         #  print(self.resources["Patient"])
         #  self.validate_resource_type(resource)
 
-        parsed_params = defaultdict(dict)
+        if len(params) == 0:
+            query = {"query": {"match_all": {}}}
+        elif len(params) == 1:
+            query = dict()
+            query["min_score"] = 0.01
+            query["query"] = element_search(params)
+        else:
+            if params["composition_method"] == "OR":
+                for k, v in params["body"].items():
+                    res.append({"match": {k: v}})
+                query = {"min_score": 0.01, "query": {"bool": {"should": res}}}
+            if params["composition_method"] == "AND":
+                for k, v in params["body"].items():
+                    res.append({"match": {k: v}})
+                query = {"min_score": 0.01, "query": {"bool": {"must": res}}}
 
-        # translate the prefix from fhir standard to elastic search standard
-        number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
+        print(query)
 
-        for key, value in params.items():
-            # parse numbers
-            # TODO: handle sa eb ap eq ne prefixes
-            is_number = False
-            m = re.search(
-                # r"^(eq|ne|gt|lt|ge|le|sa|eb|ap):(.*)$",
-                r"^(gt|lt|ge|le)([0-9].*)$",
-                value,
-            )
-
-            if m:
-                is_number = True
-                # Possible error
-                # ES Query of type match
-                parsed_params["range"][key] = {
-                    number_prefix_matching[m.group(1)]: m.group(2)
-                }
-            # parse strings
-            is_string = False
-            m = re.search(r"^(.*):(contains|exact)$", key)
-
-            if m:
-                is_string = True
-
-                if m.group(2) == "contains":
-                    parsed_params["query_string"]["query"] = f"*{value}*"
-                    parsed_params["query_string"]["default_field"] = m.group(1)
-
-                elif m.group(2) == "exact":
-                    parsed_params["term"][m.group(1)] = value
-
-            # TODO: parse tokens
-
-            # default case
-            if not (is_number or is_string):
-                parsed_params["match"][key] = params[key]
-
-        # TODO: add other types of items queried: token, boolean, URI
-        # TODO: require multiple fields at the same time (name=jane&age>25)
-        # Specify the body of the request in JSON
-        body = {"query": {k: v for k, v in parsed_params.items()}}
-        print(body)
         # Use the search function provided by the python wrapper for
-        # Elasticsearch
-        hits = self.es.search(body=body, index=f"fhirstore.{resourceType}")
+        # # Elasticsearch
+        hits = self.es.search(body=query, index=f"fhirstore.{resourceType}")
 
-        # Transform the output of the ESearch into a bundle, the FHIR standard
-        # for a search output.
+        # # Transform the output of the ESearch into a bundle, the FHIR standard
+        # # for a search output.
         response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
 
         return response
