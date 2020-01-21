@@ -256,27 +256,38 @@ class FHIRStore:
         #  print(self.resources["Patient"])
         #  self.validate_resource_type(resource)
 
+        # Search all entries
         if len(params) == 0:
             query = {"query": {"match_all": {}}}
-        elif len(params) == 1:
+
+        # Search one parameter with possible modifiers
+        elif len(params) == 1 and not params["multiple"]:
             query = dict()
             query["min_score"] = 0.01
             query["query"] = element_search(params)
+
+        # Search multiple parameters with AND/OR logical links
         else:
-            if params["composition_method"] == "OR":
-                for k, v in params["body"].items():
-                    res.append({"match": {k: v}})
+            if params["multiple"]:
+                for k, v in params["multiple"].items():
+                    for w in v:
+                        res.append({"match": {k: w}})
                 query = {"min_score": 0.01, "query": {"bool": {"should": res}}}
-            if params["composition_method"] == "AND":
-                for k, v in params["body"].items():
-                    res.append({"match": {k: v}})
+            else:
+                for k, v in params.items():
+                    for w in v:
+                        res.append({"match": {k: w}})
                 query = {"min_score": 0.01, "query": {"bool": {"must": res}}}
 
         print(query)
 
         # Use the search function provided by the python wrapper for
         # # Elasticsearch
-        hits = self.es.search(body=query, index=f"fhirstore.{resourceType}")
+        # Quick fix to handle the fact that monstache changes the resource name to
+        # lower cases
+        hits = self.es.search(body=query, index=f"fhirstore.{resourceType.lower()}")
+
+        #   index=f"fhirstore.{resourceType}")
 
         # # Transform the output of the ESearch into a bundle, the FHIR standard
         # # for a search output.
