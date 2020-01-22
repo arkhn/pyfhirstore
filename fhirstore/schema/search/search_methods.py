@@ -7,7 +7,7 @@ from elasticsearch import Elasticsearch
 
 
 def element_search(params):
-    """ Translates the a single JSON body search to an 
+    """ Translates the a single JSON body search to an
     elasticSearch query
     """
 
@@ -17,14 +17,13 @@ def element_search(params):
     parsed_params = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
     for key, value in params.items():
         for v in value:
-            print(key)
-            print(params[key])
             # TODO: handle sa eb ap ne prefixes
             n = re.search(r"^(gt|lt|ge|le)([0-9].*)$", v)
             m = re.search(
                 r"^(.*):(contains|exact|above|below|not|in|not-in|of-type)$", key
             )
             p = re.search(r"^(eq)([0-9].*)$", v)
+            # If there is a modifier on the key
             if m:
                 if m.group(2) == "contains":
                     parsed_params["query_string"]["query"] = f"*{v}*"
@@ -55,13 +54,18 @@ def element_search(params):
                 if m.group(2) == "below":
                     parsed_params["simple_query_string"]["query"] = f"({v})*"
                     parsed_params["simple_query_string"]["fields"] = [m.group(1)]
+
+            # If the modifier on the value is in number_prefix_matching
             elif n:
                 parsed_params["range"][key] = {
                     number_prefix_matching[n.group(1)]: n.group(2)
                 }
+
+            # If the modifier on the value is "eq"
             elif p:
                 parsed_params["match"][key] = p.group(2)
 
+            # If there are no modifiers
             elif not (m) or not (n):
                 parsed_params["match"][key] = v
 

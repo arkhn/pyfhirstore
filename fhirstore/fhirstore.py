@@ -247,50 +247,45 @@ class FHIRStore:
             - params: search parameters as returned by the API. For a simple
             search, the parameters should be of the type {"key": "value"}
             eg: {"gender":"female"}, with modifiers {"address.city:exact":"Paris"}.
-            For a composite search, the params should be a payload of the form:
-            {"logical": "AND", "body": {"key1": "value1", "key2": "value2"} }.
+            For a search on multiple parameters, params should be a payload of the form:
+            {"key1": ["value1", "value2"], "multiple": {"key2": ["value3", "value4"]}}.
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
         res = []
-        #  print(self.resources["Patient"])
         #  self.validate_resource_type(resource)
 
-        # Search all entries
+        # No parameters are search, show all the resource
         if len(params) == 0:
             query = {"query": {"match_all": {}}}
 
-        # Search one parameter with possible modifiers
+        # One search parameter with possible modifiers
         elif len(params) == 1 and not params["multiple"]:
             query = dict()
             query["min_score"] = 0.01
             query["query"] = element_search(params)
 
-        # Search multiple parameters with AND/OR logical links
+        # Multiple search parameters with AND/OR logical links
         else:
+            # OR logical link
             if params["multiple"]:
                 for k, v in params["multiple"].items():
                     for w in v:
                         res.append({"match": {k: w}})
                 query = {"min_score": 0.01, "query": {"bool": {"should": res}}}
+            # AND logical link
             else:
                 for k, v in params.items():
                     for w in v:
                         res.append({"match": {k: w}})
                 query = {"min_score": 0.01, "query": {"bool": {"must": res}}}
 
-        print(query)
-
-        # Use the search function provided by the python wrapper for
-        # # Elasticsearch
-        # Quick fix to handle the fact that monstache changes the resource name to
-        # lower cases
+        # Quick fix to handle the fact that monstache changes the resource
+        # name to lower cases
         hits = self.es.search(body=query, index=f"fhirstore.{resourceType.lower()}")
 
-        #   index=f"fhirstore.{resourceType}")
-
-        # # Transform the output of the ESearch into a bundle, the FHIR standard
-        # # for a search output.
+        # Transform the output of the ESearch into a bundle, the FHIR standard
+        # for a search output.
         response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
 
         return response

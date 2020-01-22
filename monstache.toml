@@ -11,3 +11,4 @@ direct-read-namespaces = ["fhirstore.Patient"]
 change-stream-namespaces = ["fhirstore"]
 
 verbose = true
+
