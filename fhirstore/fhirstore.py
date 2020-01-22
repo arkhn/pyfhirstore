@@ -253,39 +253,26 @@ class FHIRStore:
         search standard.
         """
         res = []
-        #  self.validate_resource_type(resource)
-
-        # No parameters are search, show all the resource
+        
         if len(params) == 0:
             query = {"query": {"match_all": {}}}
-
-        # One search parameter with possible modifiers
         elif len(params) == 1 and not params["multiple"]:
             query = dict()
             query["min_score"] = 0.01
             query["query"] = element_search(params)
-
-        # Multiple search parameters with AND/OR logical links
         else:
-            # OR logical link
             if params["multiple"]:
                 for k, v in params["multiple"].items():
                     for w in v:
                         res.append({"match": {k: w}})
                 query = {"min_score": 0.01, "query": {"bool": {"should": res}}}
-            # AND logical link
             else:
                 for k, v in params.items():
                     for w in v:
                         res.append({"match": {k: w}})
                 query = {"min_score": 0.01, "query": {"bool": {"must": res}}}
 
-        # Quick fix to handle the fact that monstache changes the resource
-        # name to lower cases
         hits = self.es.search(body=query, index=f"fhirstore.{resourceType.lower()}")
-
-        # Transform the output of the ESearch into a bundle, the FHIR standard
-        # for a search output.
         response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
 
         return response
