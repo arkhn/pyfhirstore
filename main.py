@@ -7,9 +7,6 @@ from elasticsearch import Elasticsearch
 
 from fhirstore import FHIRStore
 
-# MONGO_USERNAME = os.getenv("MONGO_USERNAME")
-# CLIENT_PASSWORD = os.getenv("CLIENT_PASSWORD")
-
 
 if __name__ == '__main__':
     client = MongoClient(username="arkhn", password="SuperSecurePassword2019")
