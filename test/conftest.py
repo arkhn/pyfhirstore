@@ -11,9 +11,7 @@ from fhirstore import FHIRStore
 DB_NAME = "fhirstore_test"
 MONGO_USERNAME = os.getenv("MONGO_USERNAME")
 CLIENT_PASSWORD = os.getenv("CLIENT_PASSWORD")
-ES_HOST = os.getenv("ES_HOST", "localhost")
-ES_PORT = os.getenv("ES_PORT", "9200")
-ES_TARGET = os.getenv("ES_TARGET")
+ES_URL = os.getenv("ES_URL")
 
 @pytest.fixture(scope="session")
 def store():
@@ -24,7 +22,7 @@ def store():
         print("MongoClient could not reach server, is it running ?")
         raise
     client_es = Elasticsearch(
-        [ES_TARGET], http_auth=("elastic", CLIENT_PASSWORD)
+        [ES_URL], http_auth=("elastic", CLIENT_PASSWORD)
     )
 
     fhirstore = FHIRStore(client, client_es, DB_NAME)
