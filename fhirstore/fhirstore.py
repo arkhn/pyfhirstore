@@ -1,6 +1,5 @@
 import sys
 import re
-import json
 
 from collections import defaultdict
 from pymongo import MongoClient, ReturnDocument
@@ -263,6 +262,8 @@ class FHIRStore:
             sub_query = {"bool": {"must": inter_query}}
         query = {"min_score": 0.01, "query": sub_query}
 
+        # .lower() is used to fix the fact that monstache changes resourceTypes to
+        # all lower case
         hits = self.es.search(body=query, index=f"fhirstore.{resourceType.lower()}")
         response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
 
