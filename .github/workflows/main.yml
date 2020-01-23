@@ -35,9 +35,6 @@ jobs:
           # exit-zero treats all errors as warnings.
           flake8 fhirstore --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
       - name: Test with pytest
-        # env:
-        #   MONGO_USERNAME: "arkhn"
-        #   CLIENT_PASSWORD: "SuperSecurePassword2019"
         run: |
           docker-compose up -d
           ./scripts/wait_for_db.sh

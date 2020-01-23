@@ -1,5 +1,4 @@
 import sys
-import os
 import re
 import json
 
@@ -10,7 +9,7 @@ from tqdm import tqdm
 from jsonschema import validate
 from elasticsearch import Elasticsearch
 from fhirstore.schema import SchemaParser
-from fhirstore.schema.search.search_methods import element_search
+from fhirstore.schema.search.search_methods import build_simple_query
 
 
 class NotFoundError(Exception):
@@ -252,25 +251,17 @@ class FHIRStore:
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
-        res = []
-        
+        sub_query = defaultdict(lambda: defaultdict(dict))
         if len(params) == 0:
-            query = {"query": {"match_all": {}}}
-        elif len(params) == 1 and not params["multiple"]:
-            query = dict()
-            query["min_score"] = 0.01
-            query["query"] = element_search(params)
-        else:
-            if params["multiple"]:
-                for k, v in params["multiple"].items():
-                    for w in v:
-                        res.append({"match": {k: w}})
-                query = {"min_score": 0.01, "query": {"bool": {"should": res}}}
-            else:
-                for k, v in params.items():
-                    for w in v:
-                        res.append({"match": {k: w}})
-                query = {"min_score": 0.01, "query": {"bool": {"must": res}}}
+            sub_query = {"match_all": {}}
+        if len(params) == 1:
+            sub_query = build_simple_query(params)
+        if len(params) > 1:
+            inter_query = []
+            for sub_key, sub_value in params.items():
+                inter_query.append(build_simple_query({sub_key: sub_value}))
+            sub_query = {"bool": {"must": inter_query}}
+        query = {"min_score": 0.01, "query": sub_query}
 
         hits = self.es.search(body=query, index=f"fhirstore.{resourceType.lower()}")
         response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
