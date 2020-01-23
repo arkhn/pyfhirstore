@@ -40,7 +40,7 @@ jobs:
           ./scripts/wait_for_db.sh
           ./scripts/initiate_rep_set.sh 
           sleep 5
-          python -m pytest -svvv test/
+          env $(cat .env) python -m pytest -svvv test/
 
   publish:
     name: Build and publish
