@@ -24,7 +24,7 @@ def store():
         print("MongoClient could not reach server, is it running ?")
         raise
     client_es = Elasticsearch(
-        [DB_HOST], http_auth=("elastic", CLIENT_PASSWORD), scheme="http", port=ES_PORT
+        [ES_HOST], http_auth=("elastic", CLIENT_PASSWORD), scheme="http", port=ES_PORT
     )
 
     fhirstore = FHIRStore(client, client_es, DB_NAME)
