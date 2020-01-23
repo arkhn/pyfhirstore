@@ -59,7 +59,7 @@ def build_simple_query(sub_param):
     """
     content = []
     sub_query = {}
-    if bool(sub_param.get("multiple")):
+    if sub_param.get("multiple"):
         multiple_key = list(sub_param["multiple"])[0]
         multiple_values = sub_param["multiple"][multiple_key]
         for element in multiple_values:

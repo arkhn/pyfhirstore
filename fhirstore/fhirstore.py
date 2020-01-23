@@ -8,7 +8,7 @@ from tqdm import tqdm
 from jsonschema import validate
 from elasticsearch import Elasticsearch
 from fhirstore.schema import SchemaParser
-from fhirstore.schema.search.search_methods import build_simple_query
+from fhirstore.search.search_methods import build_simple_query
 
 
 class NotFoundError(Exception):
