@@ -10,19 +10,20 @@ from fhirstore import FHIRStore
 
 DB_NAME = "fhirstore_test"
 MONGO_USERNAME = os.getenv("MONGO_USERNAME")
-CLIENT_PASSWORD = os.getenv("CLIENT_PASSWORD")
+MONGO_PASSWORD = os.getenv("MONGO_PASSWORD")
+ES_PASSWORD = os.getenv("ES_PASSWORD")
 ES_URL = os.getenv("ES_URL")
 
 @pytest.fixture(scope="session")
 def store():
-    client = MongoClient(username=MONGO_USERNAME, password=CLIENT_PASSWORD)
+    client = MongoClient(username=MONGO_USERNAME, password=MONGO_PASSWORD)
     try:
         client.server_info()
     except ServerSelectionTimeoutError as err:
         print("MongoClient could not reach server, is it running ?")
         raise
     client_es = Elasticsearch(
-        [ES_URL], http_auth=("elastic", CLIENT_PASSWORD)
+        [ES_URL], http_auth=("elastic", ES_PASSWORD)
     )
 
     fhirstore = FHIRStore(client, client_es, DB_NAME)
@@ -33,7 +34,7 @@ def store():
 
 @pytest.fixture(scope="session")
 def mongo_client():
-    return MongoClient(username=MONGO_USERNAME, password=CLIENT_PASSWORD)[DB_NAME]
+    return MongoClient(username=MONGO_USERNAME, password=MONGO_PASSWORD)[DB_NAME]
 
 
 @pytest.fixture(scope="function")
