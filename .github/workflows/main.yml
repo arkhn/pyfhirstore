@@ -38,7 +38,7 @@ jobs:
         run: |
           docker-compose up -d
           ./scripts/wait_for_db.sh
-          ./scripts/initiate_rep_set.sh 
+          env $(cat .env) ./scripts/initiate_rep_set.sh 
           sleep 5
           env $(cat .env) python -m pytest -svvv test/
 
