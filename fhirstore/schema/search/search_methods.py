@@ -5,13 +5,13 @@ import json
 from collections import defaultdict
 from elasticsearch import Elasticsearch
 
+number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
 
 def build_element_query(key, value):
     """ Translates the a single JSON body search to an
     elasticSearch query
     """
 
-    number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
     element_query = defaultdict(lambda: defaultdict(dict))
 
     numeric_modif = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
