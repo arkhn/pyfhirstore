@@ -16,31 +16,33 @@ def build_element_query(key, value):
 
     numeric_modif = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
     eq_modif = re.search(r"^(eq)([0-9].*)$", f"{value}")
-    str_modif = re.search(
+    string_modif = re.search(
         r"^(.*):(contains|exact|above|below|not|in|not-in|of-type)$", key
     )
-    if str_modif:
-        if str_modif.group(2) == "contains":
+    if string_modif:
+        string_modifier = string_modif.group(2)
+        string_field = string_modif.group(1)
+        if string_modifier == "contains":
             element_query["query_string"]["query"] = f"*{value}*"
-            element_query["query_string"]["default_field"] = str_modif.group(1)
+            element_query["query_string"]["default_field"] = string_field
 
-        if str_modif.group(2) == "exact":
+        elif string_modifier == "exact":
             element_query["query_string"]["query"] = value
-            element_query["query_string"]["fields"] = [str_modif.group(1)]
+            element_query["query_string"]["fields"] = [string_field]
 
-        if str_modif.group(2) == "not":
-            element_query["bool"]["must_not"]["match"][str_modif.group(1)] = f"{value}"
+        elif string_modifier == "not":
+            element_query["bool"]["must_not"]["match"][string_field] = f"{value}"
 
-        if str_modif.group(2) == "not-in":
+        elif string_modifier == "not-in":
             element_query["simple_query_string"]["query"] = f"-{value}"
-            element_query["simple_query_string"]["fields"] = [str_modif.group(1)]
+            element_query["simple_query_string"]["fields"] = [string_field]
 
-        if str_modif.group(2) == "in":
+        elif string_modifier == "in":
             element_query["query_string"]["query"] = f"{value}"
 
-        if str_modif.group(2) == "below":
+        elif string_modifier == "below":
             element_query["simple_query_string"]["query"] = f"({value})*"
-            element_query["simple_query_string"]["fields"] = [str_modif.group(1)]
+            element_query["simple_query_string"]["fields"] = [string_field]
 
     elif numeric_modif:
         element_query["range"][key] = {
@@ -57,13 +59,12 @@ def build_element_query(key, value):
 def build_simple_query(sub_param):
     """Accepts a dictionary of length 1
     """
-    content = []
     sub_query = {}
     if sub_param.get("multiple"):
         multiple_key = list(sub_param["multiple"])[0]
         multiple_values = sub_param["multiple"][multiple_key]
-        for element in multiple_values:
-            content.append({"match": {multiple_key: element}})
+        content = [{"match": {multiple_key: element}}
+                   for element in multiple_values]
         sub_query = {"bool": {"should": content}}
     else:
         key = list(sub_param)[0]
@@ -71,7 +72,7 @@ def build_simple_query(sub_param):
         if len(values) == 1:
             sub_query = build_element_query(key, values[0])
         else:
-            for element in values:
-                content.append({"match": {key: element}})
+            content = [{"match": {key: element}}
+                       for element in values]
             sub_query = {"bool": {"must": content}}
     return sub_query

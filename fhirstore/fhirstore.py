@@ -241,24 +241,27 @@ class FHIRStore:
         Returns a bundle of items, as required by FHIR standards.
 
         Args:
-            - resource: FHIR resource (eg: 'Patient')
+            - resourceType: FHIR resource (eg: 'Patient')
             - params: search parameters as returned by the API. For a simple
             search, the parameters should be of the type {"key": "value"}
-            eg: {"gender":"female"}, with modifiers {"address.city:exact":"Paris"}.
-            For a search on multiple parameters, params should be a payload of the form:
-            {"key1": ["value1", "value2"], "multiple": {"key2": ["value3", "value4"]}}.
+            eg: {"gender":"female"}, with possible modifiers {"address.city:exact":"Paris"}.
+            If a search is made one field with multiple arguments (eg: language is French 
+            OR English), params should be a payload of type {"multiple": {"language": 
+            ["French", "English"]}}. 
+            If a search has more than one field queried, params should be a payload of 
+            the form: {"address.city": ["Paris"], "multiple":
+            {"language": ["French", "English"]}}.
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
         sub_query = defaultdict(lambda: defaultdict(dict))
         if len(params) == 0:
             sub_query = {"match_all": {}}
-        if len(params) == 1:
+        elif len(params) == 1:
             sub_query = build_simple_query(params)
-        if len(params) > 1:
-            inter_query = []
-            for sub_key, sub_value in params.items():
-                inter_query.append(build_simple_query({sub_key: sub_value}))
+        elif len(params) > 1:
+            inter_query = [build_simple_query({sub_key: sub_value})
+                           for sub_key, sub_value in params.items()]
             sub_query = {"bool": {"must": inter_query}}
         query = {"min_score": 0.01, "query": sub_query}
 
