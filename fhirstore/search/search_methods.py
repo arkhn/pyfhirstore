@@ -2,10 +2,23 @@ import sys
 import re
 import json
 
-from collections import defaultdict
+from collections import defaultdict, Mapping
 from elasticsearch import Elasticsearch
 
 number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
+
+
+def validate_parameters(params):
+    """Validates that parameters is in dictionary form
+    """
+    assert isinstance(params, Mapping), "parameters must be a dictionary"
+
+
+def validate_sub_parameters(sub_param):
+    """Validates that sub-parameters have length 1
+    """
+    assert len(sub_param) == 1, "sub-parameters must be of length 1"
+
 
 def build_element_query(key, value):
     """ Translates the a single JSON body search to an
@@ -59,12 +72,13 @@ def build_element_query(key, value):
 def build_simple_query(sub_param):
     """Accepts a dictionary of length 1
     """
+    validate_parameters(sub_param)
+    validate_sub_parameters(sub_param)
     sub_query = {}
     if sub_param.get("multiple"):
         multiple_key = list(sub_param["multiple"])[0]
         multiple_values = sub_param["multiple"][multiple_key]
-        content = [{"match": {multiple_key: element}}
-                   for element in multiple_values]
+        content = [{"match": {multiple_key: element}} for element in multiple_values]
         sub_query = {"bool": {"should": content}}
     else:
         key = list(sub_param)[0]
@@ -72,7 +86,6 @@ def build_simple_query(sub_param):
         if len(values) == 1:
             sub_query = build_element_query(key, values[0])
         else:
-            content = [{"match": {key: element}}
-                       for element in values]
+            content = [{"match": {key: element}} for element in values]
             sub_query = {"bool": {"must": content}}
     return sub_query

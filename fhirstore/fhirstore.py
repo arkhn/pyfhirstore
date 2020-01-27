@@ -8,7 +8,7 @@ from tqdm import tqdm
 from jsonschema import validate
 from elasticsearch import Elasticsearch
 from fhirstore.schema import SchemaParser
-from fhirstore.search.search_methods import build_simple_query
+from fhirstore.search.search_methods import build_simple_query, validate_parameters
 
 
 class NotFoundError(Exception):
@@ -235,13 +235,13 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, resourceType, params):
+    def search(self, resource_type, params):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
 
         Args:
-            - resourceType: FHIR resource (eg: 'Patient')
+            - resource_type: FHIR resource (eg: 'Patient')
             - params: search parameters as returned by the API. For a simple
             search, the parameters should be of the type {"key": "value"}
             eg: {"gender":"female"}, with possible modifiers {"address.city:exact":"Paris"}.
@@ -254,20 +254,25 @@ class FHIRStore:
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
+        self.validate_resource_type(resource_type)
+        validate_parameters(params)
+
         sub_query = defaultdict(lambda: defaultdict(dict))
         if len(params) == 0:
             sub_query = {"match_all": {}}
         elif len(params) == 1:
             sub_query = build_simple_query(params)
         elif len(params) > 1:
-            inter_query = [build_simple_query({sub_key: sub_value})
-                           for sub_key, sub_value in params.items()]
+            inter_query = [
+                build_simple_query({sub_key: sub_value})
+                for sub_key, sub_value in params.items()
+            ]
             sub_query = {"bool": {"must": inter_query}}
         query = {"min_score": 0.01, "query": sub_query}
 
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
-        hits = self.es.search(body=query, index=f"fhirstore.{resourceType.lower()}")
+        hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
         response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
 
         return response
