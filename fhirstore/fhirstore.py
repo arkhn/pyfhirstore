@@ -45,11 +45,9 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(resources, file=sys.stdout,
-                             desc="Bootstrapping collections...")
+            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
         for resource_name, schema in resources:
-            self.db.create_collection(
-                resource_name, **{"validator": {"$jsonSchema": schema}})
+            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
@@ -65,8 +63,7 @@ class FHIRStore:
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()[
-                "validator"]["$jsonSchema"]
+            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -74,10 +71,9 @@ class FHIRStore:
             raise BadRequestError("resourceType is missing in resource")
 
         elif resource_type not in self.resources:
-            raise NotFoundError(
-                f'unsupported FHIR resource: "{resource_type}"')
+            raise NotFoundError(f'unsupported FHIR resource: "{resource_type}"')
 
-    def create(self, resource):
+    def create(self, resource, bypass_document_validation=False):
         """
         Creates a resource. The structure of the resource will be checked
         against its json-schema FHIR definition.
@@ -93,7 +89,9 @@ class FHIRStore:
         self.validate_resource_type(resource_type)
 
         try:
-            res = self.db[resource_type].insert_one(resource)
+            res = self.db[resource_type].insert_one(
+                resource, bypass_document_validation=bypass_document_validation
+            )
             return {**resource, "_id": res.inserted_id}
         except WriteError:
             self.validate(resource)
