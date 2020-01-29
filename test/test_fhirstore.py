@@ -55,6 +55,7 @@ class TestFHIRStore:
             assert isinstance(result["_id"], ObjectId), "result _id must be an objectId"
             inserted = mongo_client["Patient"].find_one({"_id": result["_id"]})
             assert inserted == patient
+            mongo_client["Patient"].delete_one({"_id": patient["_id"]})
 
     ###
     # FHIRStore.read()
@@ -158,15 +159,3 @@ class TestFHIRStore:
         store.create(test_patient)
         result = store.delete("Patient", test_patient["id"])
         assert result == test_patient["id"]
-
-    def test_search_bad_resource_type(self, store: FHIRStore):
-        """search() raises error if resource type is unknown"""
-
-        with raises(NotFoundError, match='unsupported FHIR resource: "unknown"'):
-            store.search("unknown", {})
-
-    def test_search_bad_params(self, store: FHIRStore):
-        """search() raises an error if params is not a dictionary"""
-
-        with raises(AssertionError, match="parameters must be a dictionary"):
-            store.search("Patient", "gender")
