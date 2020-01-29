@@ -22,7 +22,7 @@ def insert_es(es_client):
             es_client.index(index="fhirstore.patient", body=patient_2)
 
         with open(
-            "/Users/elsiehoffet/Arkhn/git/pyfhirstore/test/fixtures/patient-example-with-extensions.json"
+            "test/fixtures/patient-example-with-extensions.json"
         ) as h:
             patient_3 = json.load(h)
             es_client.index(index="fhirstore.patient", body=patient_3)
