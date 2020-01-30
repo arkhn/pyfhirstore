@@ -29,9 +29,7 @@ def build_element_query(key, value):
 
     numeric_modif = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
     eq_modif = re.search(r"^(eq)([0-9].*)$", f"{value}")
-    string_modif = re.search(
-        r"^(.*):(contains|exact|above|below|not|in|not-in|of-type)$", key
-    )
+    string_modif = re.search(r"^(.*):(contains|exact|above|below|not|in|not-in|of-type)$", key)
     if string_modif:
         string_modifier = string_modif.group(2)
         string_field = string_modif.group(1)
