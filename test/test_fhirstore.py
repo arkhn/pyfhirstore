@@ -5,6 +5,7 @@ from bson.objectid import ObjectId
 from pymongo import MongoClient
 from fhirstore import FHIRStore, BadRequestError, NotFoundError
 from jsonschema.exceptions import ValidationError
+from collections import Mapping
 
 # For now, this class assumes an already existing store exists
 # (store.bootstrap was run)
@@ -50,6 +51,7 @@ class TestFHIRStore:
             assert isinstance(result["_id"], ObjectId), "result _id must be an objectId"
             inserted = mongo_client["Patient"].find_one({"_id": result["_id"]})
             assert inserted == patient
+            mongo_client["Patient"].delete_one({"_id": patient["_id"]})
 
     ###
     # FHIRStore.read()

@@ -1,16 +1,41 @@
-# Use root/example as user/password credentials
 version: '3.1'
 
 services:
   mongo:
-    image: mongo
+    image: mongo:4.2.1
     restart: always
     environment:
+      MONGO_INITDB_ROOT_USERNAME: arkhn
+      MONGO_INITDB_ROOT_PASSWORD: SuperSecurePassword2019
       MONGO_INITDB_DATABASE: fhirstore
     ports:
       - 27017:27017
     volumes:
       - fhirstore-db:/data/db
+    command: --replSet rs0
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.4.1
+    environment:
+      ELASTIC_PASSWORD: SuperSecurePassword2019
+    ports:
+      - 9200:9200
+    volumes:
+      - ./elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - esdata:/usr/share/elasticsearch/data
+
+  monstache:
+    image: rwynn/monstache:6.2.5
+    command: -f /opt/monstache.toml
+    restart: always
+    volumes:
+      - ./monstache.toml:/opt/monstache.toml
+    depends_on:
+      - mongo
+      - elasticsearch
 
 volumes:
   fhirstore-db:
+    driver: local
+  esdata:
+    driver: local

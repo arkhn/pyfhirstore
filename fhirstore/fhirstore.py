@@ -1,11 +1,14 @@
 import sys
+import re
 
+from collections import defaultdict
 from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import WriteError, OperationFailure
 from tqdm import tqdm
 from jsonschema import validate
-
+from elasticsearch import Elasticsearch
 from fhirstore.schema import SchemaParser
+from fhirstore.search.search_methods import build_simple_query, validate_parameters
 
 
 class NotFoundError(Exception):
@@ -25,7 +28,10 @@ class BadRequestError(Exception):
 
 
 class FHIRStore:
-    def __init__(self, client: MongoClient, db_name: str, resources: dict = {}):
+    def __init__(
+        self, client: MongoClient, client_es: Elasticsearch, db_name: str, resources: dict = {},
+    ):
+        self.es = client_es
         self.db = client[db_name]
         self.parser = SchemaParser()
         self.resources = resources
@@ -59,7 +65,7 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections, file=sys.stdout, desc="Loading collections from database..."
+                collections, file=sys.stdout, desc="Loading collections from database...",
             )
 
         for collection in collections:
@@ -161,7 +167,7 @@ class FHIRStore:
 
         try:
             updated = self.db[resource_type].find_one_and_update(
-                {"id": resource_id}, {"$set": patch}, return_document=ReturnDocument.AFTER
+                {"id": resource_id}, {"$set": patch}, return_document=ReturnDocument.AFTER,
             )
             if updated is None:
                 raise NotFoundError
@@ -204,3 +210,44 @@ class FHIRStore:
         if schema is None:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
+
+    def search(self, resource_type, params):
+        """
+        Searchs for params inside a resource.
+        Returns a bundle of items, as required by FHIR standards.
+
+        Args:
+            - resource_type: FHIR resource (eg: 'Patient')
+            - params: search parameters as returned by the API. For a simple
+            search, the parameters should be of the type {"key": "value"}
+            eg: {"gender":"female"}, with possible modifiers {"address.city:exact":"Paris"}.
+            If a search is made one field with multiple arguments (eg: language is French 
+            OR English), params should be a payload of type {"multiple": {"language": 
+            ["French", "English"]}}. 
+            If a search has more than one field queried, params should be a payload of 
+            the form: {"address.city": ["Paris"], "multiple":
+            {"language": ["French", "English"]}}.
+        Returns: A bundle with the results of the search, as required by FHIR
+        search standard.
+        """
+        self.validate_resource_type(resource_type)
+        validate_parameters(params)
+
+        sub_query = defaultdict(lambda: defaultdict(dict))
+        if len(params) == 0:
+            sub_query = {"match_all": {}}
+        elif len(params) == 1:
+            sub_query = build_simple_query(params)
+        elif len(params) > 1:
+            inter_query = [
+                build_simple_query({sub_key: sub_value}) for sub_key, sub_value in params.items()
+            ]
+            sub_query = {"bool": {"must": inter_query}}
+        query = {"min_score": 0.01, "query": sub_query}
+
+        # .lower() is used to fix the fact that monstache changes resourceTypes to
+        # all lower case
+        hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
+        response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
+
+        return response
