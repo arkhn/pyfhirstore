@@ -2,6 +2,7 @@ import pytest
 import json
 from pytest import raises
 
+from time import sleep
 from fhirstore import FHIRStore, NotFoundError
 from fhirstore.search.search_methods import build_element_query, build_simple_query
 from collections import Mapping
@@ -12,11 +13,10 @@ from collections import Mapping
 
 @pytest.fixture(scope="module")
 def insert_es(es_client):
-    print("toto")
     if not es_client.indices.exists("fhirstore.patient"):
         with open("test/fixtures/patient-example.json") as f:
             patient_1 = json.load(f)
-            print(es_client.index(index="fhirstore.patient", body=patient_1))
+            es_client.index(index="fhirstore.patient", body=patient_1)
 
         with open("test/fixtures/patient-example-2.json") as g:
             patient_2 = json.load(g)
@@ -27,8 +27,10 @@ def insert_es(es_client):
         ) as h:
             patient_3 = json.load(h)
             es_client.index(index="fhirstore.patient", body=patient_3)
-
-        return es_client
+            
+    while es_client.count(index="fhirstore.patient")["count"]<3:
+        sleep(5)
+    return es_client
 
 
 ###
@@ -175,7 +177,7 @@ def test_search_output_type(store: FHIRStore, insert_es):
     assert result["resource_type"] == "Bundle"
 
 
-def test_search_no_parameters(store: FHIRStore, insert_es):
+def test_search_no_parameters(store: FHIRStore):
     """Checks that all elements of the resource are returned
     """
     result = store.search("Patient", {})
@@ -193,7 +195,7 @@ def test_search_one_param_simple(store: FHIRStore):
     )
 
 
-def test_search_one_param_multiple(store: FHIRStore, insert_es):
+def test_search_one_param_multiple(store: FHIRStore):
     """Checks that multiple elements of one parameter are queried
     """
     result = store.search(
@@ -210,7 +212,7 @@ def test_search_one_param_multiple(store: FHIRStore, insert_es):
     )
 
 
-def test_search_one_param_modifier_num(store: FHIRStore, insert_es):
+def test_search_one_param_modifier_num(store: FHIRStore):
     """Checks that numeric modifier work
     """
     number_modifier_matching = {
@@ -229,7 +231,7 @@ def test_search_one_param_modifier_num(store: FHIRStore, insert_es):
             assert f"{vals}{modif}654321"
 
 
-def test_search_one_param_modifier_str_contains(store: FHIRStore, insert_es):
+def test_search_one_param_modifier_str_contains(store: FHIRStore):
     """Checks that "contains" string modifier works
     """
     result = store.search(
@@ -247,7 +249,7 @@ def test_search_one_param_modifier_str_contains(store: FHIRStore, insert_es):
     )
 
 
-def test_search_one_param_modifier_str_exact(store: FHIRStore, insert_es):
+def test_search_one_param_modifier_str_exact(store: FHIRStore):
     """Checks that "exact" string modifier works
     """
     result = store.search("Patient", {"name.family:exact": ["Donald"]})
@@ -304,7 +306,7 @@ def test_search_one_params_and(store: FHIRStore):
     )
 
 
-def test_search_and_or(store: FHIRStore, insert_es):
+def test_search_and_or(store: FHIRStore):
     """Checks two parameter "and,or" search
     """
     result = store.search(
@@ -333,7 +335,7 @@ def test_search_and_or(store: FHIRStore, insert_es):
     )
 
 
-def test_search_nothing_found(store: FHIRStore, insert_es):
+def test_search_nothing_found(store: FHIRStore):
     """Check that nothing is returned when nothing matches the query
     """
     result = store.search("Patient", {"identifier.value": ["654321", "12345"]})
