@@ -55,11 +55,6 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-<<<<<<< HEAD
-            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
-        for resource_name, schema in resources:
-            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
-=======
             resources = tqdm(
                 resources, file=sys.stdout, desc="Bootstrapping collections..."
             )
@@ -67,7 +62,6 @@ class FHIRStore:
             self.db.create_collection(
                 resource_name, **{"validator": {"$jsonSchema": schema}}
             )
->>>>>>> add an ElasticSearch client, and basic full text search queries, compliant to FHIR search standards
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
@@ -85,13 +79,9 @@ class FHIRStore:
             )
 
         for collection in collections:
-<<<<<<< HEAD
-            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
-=======
             json_schema = self.db.get_collection(collection).options()["validator"][
                 "$jsonSchema"
             ]
->>>>>>> add an ElasticSearch client, and basic full text search queries, compliant to FHIR search standards
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
