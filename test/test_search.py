@@ -13,7 +13,6 @@ from collections import Mapping
 
 @pytest.fixture(scope="module")
 def insert_es(es_client):
-    sleep(2/10000)
     if not es_client.indices.exists("fhirstore.patient"):
         with open("test/fixtures/patient-example.json") as f:
             patient_1 = json.load(f)
