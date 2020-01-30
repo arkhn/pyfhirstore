@@ -35,18 +35,14 @@ class TestFHIRStore:
         with raises(ValidationError):
             store.create({"resourceType": "Patient", "id": 42})
 
-    def test_create_resource(
-        self, store: FHIRStore, mongo_client: MongoClient, test_patient
-    ):
+    def test_create_resource(self, store: FHIRStore, mongo_client: MongoClient, test_patient):
         """create() correctly inserts a document in the database"""
         result = store.create(test_patient)
         assert isinstance(result["_id"], ObjectId), "result _id must be an objectId"
         inserted = mongo_client["Patient"].find_one({"_id": result["_id"]})
         assert inserted == test_patient
 
-    def test_create_resource_with_extension(
-        self, store: FHIRStore, mongo_client: MongoClient
-    ):
+    def test_create_resource_with_extension(self, store: FHIRStore, mongo_client: MongoClient):
         """resources using extensions are not
         handled yet, an error should be raised"""
         with open("test/fixtures/patient-example-with-extensions.json") as f:
@@ -99,16 +95,12 @@ class TestFHIRStore:
 
         store.create(test_patient)
         with raises(ValidationError):
-            store.update(
-                "Patient", test_patient["id"], {**test_patient, "gender": "elephant"}
-            )
+            store.update("Patient", test_patient["id"], {**test_patient, "gender": "elephant"})
 
     def test_update_resource(self, store: FHIRStore, test_patient):
         """update() finds a document in the database"""
         store.create(test_patient)
-        result = store.update(
-            "Patient", test_patient["id"], {**test_patient, "gender": "other"}
-        )
+        result = store.update("Patient", test_patient["id"], {**test_patient, "gender": "other"})
         assert result == {**test_patient, "gender": "other"}
 
     ###
