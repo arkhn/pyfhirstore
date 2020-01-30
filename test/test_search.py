@@ -29,7 +29,7 @@ def insert_es(es_client):
             es_client.index(index="fhirstore.patient", body=patient_3)
             
     while es_client.count(index="fhirstore.patient")["count"]<3:
-        sleep(5)
+        sleep(2/10000)
     return es_client
 
 
