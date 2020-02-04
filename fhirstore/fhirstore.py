@@ -243,7 +243,7 @@ class FHIRStore:
                 build_simple_query({sub_key: sub_value}) for sub_key, sub_value in params.items()
             ]
             sub_query = {"bool": {"must": inter_query}}
-        query = {"min_score": 0.01, "query": sub_query}
+        query = {"min_score": 0.01, "size": 10000, "query": sub_query}
 
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
