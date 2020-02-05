@@ -211,7 +211,7 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, resource_type, params):
+    def search(self, resource_type, params, result_size=1000):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -243,7 +243,7 @@ class FHIRStore:
                 build_simple_query({sub_key: sub_value}) for sub_key, sub_value in params.items()
             ]
             sub_query = {"bool": {"must": inter_query}}
-        query = {"min_score": 0.01, "size": 10000, "query": sub_query}
+        query = {"min_score": 0.01, "size": result_size, "query": sub_query}
 
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
