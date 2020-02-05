@@ -302,3 +302,7 @@ def test_search_nothing_found(store: FHIRStore):
     """
     result = store.search("Patient", {"identifier.value": ["654321", "12345"]})
     assert result["items"] == []
+
+def test_search_max_length(store:FHIRStore):
+    result = store.search("Patient", {}, result_size=2)
+    assert len(result)==2
