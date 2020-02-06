@@ -348,3 +348,11 @@ def test_search_max_size(store: FHIRStore):
 def test_search_zero_size(store: FHIRStore):
     result = store.search("Patient", {}, result_size=0)
     assert len(result["items"]) == 0
+    
+def test_search_offset(store: FHIRStore):
+    result = store.search("Patient", {}, offset=1)
+    assert len(result["items"]) == 2
+
+def test_search_offset_reach_max(store: FHIRStore):
+    result = store.search("Patient", {}, offset=3)
+    assert len(result["items"]) == 0
