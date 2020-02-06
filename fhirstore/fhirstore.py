@@ -29,7 +29,11 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self, client: MongoClient, client_es: Elasticsearch, db_name: str, resources: dict = {},
+        self,
+        client: MongoClient,
+        client_es: Elasticsearch,
+        db_name: str,
+        resources: dict = {},
     ):
         self.es = client_es
         self.db = client[db_name]
@@ -51,9 +55,13 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
+            resources = tqdm(
+                resources, file=sys.stdout, desc="Bootstrapping collections..."
+            )
         for resource_name, schema in resources:
-            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
+            self.db.create_collection(
+                resource_name, **{"validator": {"$jsonSchema": schema}}
+            )
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
@@ -65,11 +73,15 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections, file=sys.stdout, desc="Loading collections from database...",
+                collections,
+                file=sys.stdout,
+                desc="Loading collections from database...",
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
+            json_schema = self.db.get_collection(collection).options()["validator"][
+                "$jsonSchema"
+            ]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -167,7 +179,9 @@ class FHIRStore:
 
         try:
             updated = self.db[resource_type].find_one_and_update(
-                {"id": resource_id}, {"$set": patch}, return_document=ReturnDocument.AFTER,
+                {"id": resource_id},
+                {"$set": patch},
+                return_document=ReturnDocument.AFTER,
             )
             if updated is None:
                 raise NotFoundError
@@ -211,7 +225,7 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, resource_type, params):
+    def search(self, resource_type, params, offset=0, result_size=100):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -240,10 +254,11 @@ class FHIRStore:
             sub_query = build_simple_query(params)
         elif len(params) > 1:
             inter_query = [
-                build_simple_query({sub_key: sub_value}) for sub_key, sub_value in params.items()
+                build_simple_query({sub_key: sub_value})
+                for sub_key, sub_value in params.items()
             ]
             sub_query = {"bool": {"must": inter_query}}
-        query = {"min_score": 0.01, "query": sub_query}
+        query = {"min_score": 0.01, "from": offset, "size": result_size, "query": sub_query}
 
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
