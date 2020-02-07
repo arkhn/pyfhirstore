@@ -1,6 +1,7 @@
 import sys
 import re
 import json
+import datetime
 
 from collections import defaultdict, Mapping
 from elasticsearch import Elasticsearch
@@ -25,11 +26,15 @@ def build_element_query(key, value):
     elasticSearch query
     """
 
-    element_query = defaultdict(lambda: defaultdict(dict))
+    element_query = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
-    numeric_modif = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
-    eq_modif = re.search(r"^(eq)([0-9].*)$", f"{value}")
-    string_modif = re.search(r"^(.*):(contains|exact|above|below|not|in|not-in|of-type)$", key)
+    numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
+    eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
+    special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
+
+    string_modif = re.search(
+        r"^(.*):(contains|exact|above|below|not|in|not-in|of-type)$", key
+    )
     if string_modif:
         string_modifier = string_modif.group(2)
         string_field = string_modif.group(1)
@@ -55,15 +60,28 @@ def build_element_query(key, value):
             element_query["simple_query_string"]["query"] = f"({value})*"
             element_query["simple_query_string"]["fields"] = [string_field]
 
-    elif numeric_modif:
+    elif numeric_prefix:
         element_query["range"][key] = {
-            number_prefix_matching[numeric_modif.group(1)]: numeric_modif.group(2)
+            number_prefix_matching[numeric_prefix.group(1)]: numeric_prefix.group(2)
         }
-    elif eq_modif:
-        element_query["match"][key] = eq_modif.group(2)
-    else:
-        element_query["match"][key] = value
+    elif eq_prefix or isinstance(value, int) or isinstance(value, float):
+        element_query["match"][key] = eq_prefix.group(2)
 
+    elif special_prefix:
+        if special_prefix.group(1) == "ne":
+            element_query["simple_query_string"][
+                "query"
+            ] = f"-{special_prefix.group(2)}"
+            element_query["simple_query_string"]["fields"] = [key]
+
+        # elif special_prefix.group(2)=="eb":
+        # elif special_prefix.group(2)=="ap":
+    elif isinstance(value, str):
+        print("is string")
+        element_query["simple_query_string"]["query"] = f"({value})*"
+        element_query["simple_query_string"]["fields"] = [key]
+    elif isinstance(value, int):
+        element_query["match"][key] = value
     return element_query
 
 
@@ -84,6 +102,6 @@ def build_simple_query(sub_param):
         if len(values) == 1:
             sub_query = build_element_query(key, values[0])
         else:
-            content = [{"match": {key: element}} for element in values]
+            content = [build_element_query(key, element) for element in values]
             sub_query = {"bool": {"must": content}}
     return sub_query

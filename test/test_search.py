@@ -69,7 +69,9 @@ def test_element_query_output():
 def test_simple_query_correct():
     """Validates that the ES query is correct"""
     result = build_simple_query({"birthDate": ["1974-12-25"]})
-    assert result == {"match": {"birthDate": "1974-12-25"}}
+    assert result == {
+        "simple_query_string": {"fields": ["birthDate"], "query": "(1974-12-25)*"}
+    }
 
 
 def test_simple_query_correct_or():
@@ -93,8 +95,18 @@ def test_simple_query_correct_and():
     assert result == {
         "bool": {
             "must": [
-                {"match": {"name.family": "Donald"}},
-                {"match": {"name.family": "Chalmers"}},
+                {
+                    "simple_query_string": {
+                        "fields": ["name.family"],
+                        "query": "(Donald)*",
+                    }
+                },
+                {
+                    "simple_query_string": {
+                        "fields": ["name.family"],
+                        "query": "(Chalmers)*",
+                    }
+                },
             ]
         }
     }
@@ -149,6 +161,20 @@ def test_simple_query_eq():
     """
     result = build_simple_query({"birthDate": ["eq1974-12-25"]})
     assert result == {"match": {"birthDate": "1974-12-25"}}
+
+
+def test_composite_query_modifiers():
+    """Validates that the ES query for "AND" with modifiers is correct
+    """
+    result = build_simple_query({"birthDate": ["lt20200101", "gt20100101"]})
+    assert result == {
+        "bool": {
+            "must": [
+                {"range": {"birthDate": {"lt": "20200101"}}},
+                {"range": {"birthDate": {"gt": "20100101"}}},
+            ]
+        }
+    }
 
 
 ###
@@ -348,11 +374,38 @@ def test_search_max_size(store: FHIRStore):
 def test_search_zero_size(store: FHIRStore):
     result = store.search("Patient", {}, result_size=0)
     assert len(result["items"]) == 0
-    
+
+
 def test_search_offset(store: FHIRStore):
     result = store.search("Patient", {}, offset=1)
     assert len(result["items"]) == 2
 
+
 def test_search_offset_reach_max(store: FHIRStore):
     result = store.search("Patient", {}, offset=3)
     assert len(result["items"]) == 0
+
+
+def test_search_size_reach_max(store: FHIRStore):
+    result = store.search("Patient", {}, result_size=101)
+    assert len(result["items"]) == 3
+
+
+def test_search_simple_array(store: FHIRStore):
+    result = store.search("Patient", {"name.family": ["Windsor"]})
+    assert result["items"][0]["_source"]["name"][2]["family"] == "Windsor"
+
+
+def test_search_multiple_modifiers(store: FHIRStore):
+    result = store.search("Patient", {"birthDate": ["lt1947-01-15", "gt1932-08-01"]})
+    assert len(result["items"]) == 1
+
+
+def test_search_multiple_modifiers_include(store: FHIRStore):
+    result = store.search("Patient", {"birthDate": ["le1974-12-25", "gt1932-08-01"]})
+    assert len(result["items"]) == 2
+
+
+def test_search_ne(store: FHIRStore):
+    result = store.search("Patient", {"identifier.value": ["ne12345"]})
+    assert len(result["items"]) == 1
