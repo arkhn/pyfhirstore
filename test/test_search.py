@@ -92,10 +92,7 @@ def test_simple_query_correct_and():
     result = build_simple_query({"name.family": ["Donald", "Chalmers"]})
     assert result == {
         "bool": {
-            "must": [
-                {"match": {"name.family": "Donald"}},
-                {"match": {"name.family": "Chalmers"}},
-            ]
+            "must": [{"match": {"name.family": "Donald"}}, {"match": {"name.family": "Chalmers"}},]
         }
     }
 
@@ -104,9 +101,7 @@ def test_simple_query_contains():
     """Validates that the ES query is correct with modifier contains
     """
     result = build_simple_query({"name.family:contains": ["Dona"]})
-    assert result == {
-        "query_string": {"query": "*Dona*", "default_field": "name.family"}
-    }
+    assert result == {"query_string": {"query": "*Dona*", "default_field": "name.family"}}
 
 
 def test_simple_query_exact():
@@ -187,27 +182,19 @@ def test_search_one_param_simple(store: FHIRStore):
     """
     result = store.search("Patient", {"identifier.value": ["654321"]})
     assert len(result["items"]) == 1
-    assert all(
-        element["_source"]["identifier"][0]["value"] == "654321"
-        for element in result["items"]
-    )
+    print(result)
+    assert all(element["identifier"][0]["value"] == "654321" for element in result["items"])
 
 
 def test_search_one_param_multiple(store: FHIRStore):
     """Checks that multiple elements of one parameter are queried
     """
-    result = store.search(
-        "Patient", {"multiple": {"name.family": ["Chalmers", "Levin"]}}
-    )
+    result = store.search("Patient", {"multiple": {"name.family": ["Chalmers", "Levin"]}})
     assert len(result["items"]) == 2
     assert any(
-        element["_source"]["name"][0]["family"] == ("Chalmers" or "Levin")
-        for element in result["items"]
+        element["name"][0]["family"] == ("Chalmers" or "Levin") for element in result["items"]
     )
-    assert all(
-        element["_source"]["name"][0]["family"] != "Donald"
-        for element in result["items"]
-    )
+    assert all(element["name"][0]["family"] != "Donald" for element in result["items"])
 
 
 def test_search_one_param_modifier_num(store: FHIRStore):
@@ -225,24 +212,21 @@ def test_search_one_param_modifier_num(store: FHIRStore):
         result = store.search("Patient", {"identifier.value": [f"{mod}654321"]})
         modif = number_modifier_matching[mod]
         for element in result["items"]:
-            vals = element["_source"]["identifier"][0]["value"]
+            vals = element["identifier"][0]["value"]
             assert f"{vals}{modif}654321"
 
 
 def test_search_one_param_modifier_str_contains(store: FHIRStore):
     """Checks that "contains" string modifier works
     """
-    result = store.search(
-        "Patient", {"managingOrganization.reference:contains": ["Organization"]}
-    )
+    result = store.search("Patient", {"managingOrganization.reference:contains": ["Organization"]})
     assert len(result["items"]) == 3
     assert any(
-        element["_source"]["managingOrganization"]["reference"] == "Organization/1"
+        element["managingOrganization"]["reference"] == "Organization/1"
         for element in result["items"]
     )
     assert any(
-        element["_source"]["managingOrganization"]["reference"]
-        != "Organization/2.16.840.1.113883.19.5"
+        element["managingOrganization"]["reference"] != "Organization/2.16.840.1.113883.19.5"
         for element in result["items"]
     )
 
@@ -252,38 +236,20 @@ def test_search_one_param_modifier_str_exact(store: FHIRStore):
     """
     result = store.search("Patient", {"name.family:exact": ["Donald"]})
     assert len(result["items"]) == 1
+    assert all(element["name"][0]["family"] == "Donald" for element in result["items"])
     assert all(
-        element["_source"]["name"][0]["family"] == "Donald"
-        for element in result["items"]
-    )
-    assert all(
-        element["_source"]["name"][0]["family"] != ("Chalmers" or "Levin")
-        for element in result["items"]
+        element["name"][0]["family"] != ("Chalmers" or "Levin") for element in result["items"]
     )
 
 
 def test_search_two_params_and(store: FHIRStore):
     """Checks two parameter "and" search
     """
-    result = store.search(
-        "Patient", {"identifier.value": ["12345"], "name.family": ["Chalmers"]}
-    )
-    assert all(
-        element["_source"]["identifier"][0]["value"] == "12345"
-        for element in result["items"]
-    )
-    assert all(
-        element["_source"]["identifier"][0]["value"] != "654321"
-        for element in result["items"]
-    )
-    assert all(
-        element["_source"]["name"][0]["family"] == "Chalmers"
-        for element in result["items"]
-    )
-    assert all(
-        element["_source"]["name"][0]["family"] != "Donald" or "Levin"
-        for element in result["items"]
-    )
+    result = store.search("Patient", {"identifier.value": ["12345"], "name.family": ["Chalmers"]})
+    assert all(element["identifier"][0]["value"] == "12345" for element in result["items"])
+    assert all(element["identifier"][0]["value"] != "654321" for element in result["items"])
+    assert all(element["name"][0]["family"] == "Chalmers" for element in result["items"])
+    assert all(element["name"][0]["family"] != "Donald" or "Levin" for element in result["items"])
     assert len(result["items"]) == 1
 
 
@@ -292,16 +258,9 @@ def test_search_one_params_and(store: FHIRStore):
     """
     result = store.search("Patient", {"name.given": ["Peter", "James"]})
     assert len(result["items"]) == 1
-    assert any(
-        element["_source"]["name"][0]["given"] == "Peter" or "James"
-        for element in result["items"]
-    )
-    assert all(
-        element["_source"]["name"][0]["given"] != "Henry" for element in result["items"]
-    )
-    assert all(
-        element["_source"]["name"][0]["given"] != "Duck" for element in result["items"]
-    )
+    assert any(element["name"][0]["given"] == "Peter" or "James" for element in result["items"])
+    assert all(element["name"][0]["given"] != "Henry" for element in result["items"])
+    assert all(element["name"][0]["given"] != "Duck" for element in result["items"])
 
 
 def test_search_and_or(store: FHIRStore):
@@ -309,28 +268,13 @@ def test_search_and_or(store: FHIRStore):
     """
     result = store.search(
         "Patient",
-        {
-            "multiple": {"name.family": ["Levin", "Chalmers"]},
-            "identifier.value": ["12345"],
-        },
+        {"multiple": {"name.family": ["Levin", "Chalmers"]}, "identifier.value": ["12345"],},
     )
     assert len(result["items"]) == 2
-    assert all(
-        element["_source"]["identifier"][0]["value"] != "654321"
-        for element in result["items"]
-    )
-    assert all(
-        element["_source"]["identifier"][0]["value"] == "12345"
-        for element in result["items"]
-    )
-    assert all(
-        element["_source"]["name"][0]["family"] == "Levin" or "Chalmers"
-        for element in result["items"]
-    )
-    assert all(
-        element["_source"]["name"][0]["family"] != "Donald"
-        for element in result["items"]
-    )
+    assert all(element["identifier"][0]["value"] != "654321" for element in result["items"])
+    assert all(element["identifier"][0]["value"] == "12345" for element in result["items"])
+    assert all(element["name"][0]["family"] == "Levin" or "Chalmers" for element in result["items"])
+    assert all(element["name"][0]["family"] != "Donald" for element in result["items"])
 
 
 def test_search_nothing_found(store: FHIRStore):
@@ -348,10 +292,12 @@ def test_search_max_size(store: FHIRStore):
 def test_search_zero_size(store: FHIRStore):
     result = store.search("Patient", {}, result_size=0)
     assert len(result["items"]) == 0
-    
+
+
 def test_search_offset(store: FHIRStore):
     result = store.search("Patient", {}, offset=1)
     assert len(result["items"]) == 2
+
 
 def test_search_offset_reach_max(store: FHIRStore):
     result = store.search("Patient", {}, offset=3)

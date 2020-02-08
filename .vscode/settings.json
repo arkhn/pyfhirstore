@@ -1,7 +1,7 @@
 {
   "python.linting.pylintEnabled": false,
   "python.linting.enabled": true,
-  "python.pythonPath": "/usr/local/bin/python3",
+  "python.pythonPath": "venv/bin/python3.7",
   "python.formatting.provider": "black",
   "python.formatting.blackArgs": ["--line-length=100"],
   "python.formatting.autopep8Path": "/usr/local/bin/autopep8"
