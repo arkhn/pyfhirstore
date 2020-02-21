@@ -33,7 +33,7 @@ def build_element_query(key, value):
     special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
 
     string_modif = re.search(
-        r"^(.*):(contains|exact|above|below|not|in|not-in|of-type)$", key
+        r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
     )
     if string_modif:
         string_modifier = string_modif.group(2)
@@ -59,6 +59,9 @@ def build_element_query(key, value):
         elif string_modifier == "below":
             element_query["simple_query_string"]["query"] = f"({value})*"
             element_query["simple_query_string"]["fields"] = [string_field]
+        elif string_modifier == "identifier":
+            element_query["simple_query_string"]["query"] = value
+            element_query["simple_query_string"]["fields"] = [f"{string_field}.identifier.value"]
 
     elif numeric_prefix:
         element_query["range"][key] = {
