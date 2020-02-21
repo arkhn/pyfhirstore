@@ -257,24 +257,32 @@ class FHIRStore:
                 build_simple_query({sub_key: sub_value})
                 for sub_key, sub_value in params.items()
             ]
-            sub_query = {"bool": {"must": inter_query}}    
-        
-        
-        
-        query = {"min_score": 0.01, "from": offset, "size": result_size, "query": sub_query}
+            sub_query = {"bool": {"must": inter_query}}
 
-        if elements: query["_source"] = elements
-        
+        query = {
+            "min_score": 0.01,
+            "from": offset,
+            "size": result_size,
+            "query": sub_query,
+        }
+
+        if elements:
+            query["_source"] = elements
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
         hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
-        response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
-       
-        return response
+        bundle = {
+            "resource_type": "Bundle",
+            "items": [h["_source"] for h in hits["hits"]["hits"]],
+            "total": hits["hits"]["total"]["value"],
+        }
+        if elements:
+            bundle["tag"] = {"code": "SUBSETTED"}
 
+        return bundle
 
     def count(self, resource_type, params):
-        """Counts how many results correspond to this query
+        """Counts how many results match to this query
         """
         self.validate_resource_type(resource_type)
         validate_parameters(params)
@@ -289,15 +297,15 @@ class FHIRStore:
                 build_simple_query({sub_key: sub_value})
                 for sub_key, sub_value in params.items()
             ]
-            sub_query = {"bool": {"must": inter_query}}    
-        
-        
-        
-        query = {"min_score": 0.01, "query": sub_query}
-                
+            sub_query = {"bool": {"must": inter_query}}
+
+        query = {"query": sub_query}
+
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
         hits = self.es.count(body=query, index=f"fhirstore.{resource_type.lower()}")
-        response = {"resource_type": "Bundle", "items": hits["hits"]["hits"]}
-       
-        return response
+        return {
+            "resource_type": "Bundle",
+            "tag": {"code": "SUBSETTED"},
+            "total": hits["count"],
+        }

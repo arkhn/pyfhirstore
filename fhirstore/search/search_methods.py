@@ -61,7 +61,9 @@ def build_element_query(key, value):
             element_query["simple_query_string"]["fields"] = [string_field]
         elif string_modifier == "identifier":
             element_query["simple_query_string"]["query"] = value
-            element_query["simple_query_string"]["fields"] = [f"{string_field}.identifier.value"]
+            element_query["simple_query_string"]["fields"] = [
+                f"{string_field}.identifier.value"
+            ]
 
     elif numeric_prefix:
         element_query["range"][key] = {
@@ -80,7 +82,6 @@ def build_element_query(key, value):
         # elif special_prefix.group(2)=="eb":
         # elif special_prefix.group(2)=="ap":
     elif isinstance(value, str):
-        print("is string")
         element_query["simple_query_string"]["query"] = f"({value})*"
         element_query["simple_query_string"]["fields"] = [key]
     elif isinstance(value, int):
