@@ -398,9 +398,15 @@ def test_search_identifier(store: FHIRStore):
     )
 
 
-def test_count_function(store: FHIRStore):
+def test_count_all(store: FHIRStore):
     result = store.count("Patient", {})
     assert result["total"] == 3
+    assert result["tag"]["code"] == "SUBSETTED"
+
+
+def test_count_some(store: FHIRStore):
+    result = store.count("Patient", {"identifier.value": ["ne12345"]})
+    assert result["total"] == 1
     assert result["tag"]["code"] == "SUBSETTED"
 
 
@@ -423,4 +429,51 @@ def test_search_two_elements(store: FHIRStore):
         {},
         {"birthDate": "1932-09-24"},
         {"birthDate": "1974-12-25"},
+    ]
+
+
+def test_search_summary_text(store: FHIRStore):
+    result = store.search("Patient", {}, elements=["text", "id", "meta"])
+    assert result["total"] == 3
+    assert result["tag"]["code"] == "SUBSETTED"
+    assert result["items"] == [
+        {
+            "id": "pat1",
+            "meta": {
+                "tag": [
+                    {
+                        "code": "HTEST",
+                        "display": "test health data",
+                        "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+                    }
+                ]
+            },
+            "text": {
+                "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n      \n      <p>Patient Donald DUCK @ Acme Healthcare, Inc. MR = 654321</p>\n    \n    </div>',
+                "status": "generated",
+            },
+        },
+        {
+            "id": "xcda",
+            "text": {
+                "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n      \n      <p>Henry Levin the 7th</p>\n    \n    </div>',
+                "status": "generated",
+            },
+        },
+        {
+            "id": "example",
+            "meta": {
+                "tag": [
+                    {
+                        "code": "HTEST",
+                        "display": "test health data",
+                        "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+                    }
+                ]
+            },
+            "text": {
+                "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n\t\t\t<table>\n\t\t\t\t<tbody>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Name</td>\n\t\t\t\t\t\t<td>Peter James \n              <b>Chalmers</b> (&quot;Jim&quot;)\n            </td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Address</td>\n\t\t\t\t\t\t<td>534 Erewhon, Pleasantville, Vic, 3999</td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Contacts</td>\n\t\t\t\t\t\t<td>Home: unknown. Work: (03) 5555 6473</td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Id</td>\n\t\t\t\t\t\t<td>MRN: 12345 (Acme Healthcare)</td>\n\t\t\t\t\t</tr>\n\t\t\t\t</tbody>\n\t\t\t</table>\n\t\t</div>',
+                "status": "generated",
+            },
+        },
     ]
