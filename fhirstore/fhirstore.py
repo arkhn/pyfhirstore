@@ -199,7 +199,7 @@ class FHIRStore:
                     "meta.tag": {
                         "$elemMatch": {
                             "code": {"$eq": resource_id},
-                            "system": {"$eq": ARKHN_CODE_SYSTEMS.resource.name},
+                            "system": {"$eq": ARKHN_CODE_SYSTEMS.resource},
                         }
                     }
                 }
@@ -210,7 +210,7 @@ class FHIRStore:
                     "meta.tag": {
                         "$elemMatch": {
                             "code": {"$eq": source_id},
-                            "system": {"$eq": ARKHN_CODE_SYSTEMS.source.name},
+                            "system": {"$eq": ARKHN_CODE_SYSTEMS.source},
                         }
                     }
                 }

@@ -169,7 +169,7 @@ class TestFHIRStore:
         resource_id = "pyrogResourceId"
         metadata = {
             "tag": [
-                {"system": ARKHN_CODE_SYSTEMS.resource.name, "code": resource_id},
+                {"system": ARKHN_CODE_SYSTEMS.resource, "code": resource_id},
                 {"code": "some-other-tag"},
             ]
         }
@@ -186,7 +186,7 @@ class TestFHIRStore:
         source_id = "pyrogSourceId"
         metadata = {
             "tag": [
-                {"system": ARKHN_CODE_SYSTEMS.source.name, "code": source_id},
+                {"system": ARKHN_CODE_SYSTEMS.source, "code": source_id},
                 {"code": "some-other-tag"},
             ]
         }
