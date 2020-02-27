@@ -182,7 +182,6 @@ def test_search_one_param_simple(store: FHIRStore):
     """
     result = store.search("Patient", {"identifier.value": ["654321"]})
     assert len(result["items"]) == 1
-    print(result)
     assert all(element["identifier"][0]["value"] == "654321" for element in result["items"])
 
 
