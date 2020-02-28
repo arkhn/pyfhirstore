@@ -42,7 +42,8 @@ patient = store.read("Patient", "pat1")
 updated_patient = store.update("Patient", "pat1", {"gender": "other"})
 
 # Delete resources
-deleted_patient_id = store.delete("Patient", "pat1")
+deleted_patients_count = store.delete("Patient", "pat1")
+deleted_patients_count = store.delete("Patient", resource_id="pyrogResouceId")
 ```
 
 ## Bootstrap the database
