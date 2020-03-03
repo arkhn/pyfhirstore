@@ -1,7 +1,7 @@
 ![](https://github.com/arkhn/pyfhirstore/workflows/fhirstore/badge.svg)
 
-
 # fhirstore
+
 Python library to manipulate fhir resources leveraging mongoDB as storage layer.
 
 ## Installation
@@ -42,7 +42,8 @@ patient = store.read("Patient", "pat1")
 updated_patient = store.update("Patient", "pat1", {"gender": "other"})
 
 # Delete resources
-deleted_patient_id = store.delete("Patient", "pat1")
+deleted_patients_count = store.delete("Patient", "pat1")
+deleted_patients_count = store.delete("Patient", resource_id="pyrogResouceId")
 ```
 
 ## Bootstrap the database
@@ -59,29 +60,36 @@ python main.py
 
 1. Create a virtual environment and enter it
 2. Install python dependncies
-   
+
 ```bash
-virtualenv . 
+virtualenv .
 . ./bin/activate
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
 ## Test
+
 Test can be run using :
+
 ```bash
 python -m pytest
 ```
+
 Make sure dev dependencies are installed.
 
 ## Benchmark
+
 A benchmark based on example FHIR resources publicly available at can be run using :
+
 ```bash
 python benchmark/benchmark.py
 ```
+
 Note that you will need to have a MongoDB up in order for the benchmark to run. You can use the docker-compose file of this repository by running `docker-compose up` before launching the benchmark.
 
 On a machine with 16GB RAM and an i7 (2.5GHz) processor, the results of the benchamrk were:
+
 ```
 --- WRITES ---
 insertions per second (on average): 267.17
@@ -101,6 +109,7 @@ spread: 0.0002154728657872756
 ```
 
 On the same machine, here are the results for the same benchmark using a different library, [fhirbase](https://github.com/fhirbase/fhirbase.py). The latter relies on postgreSQL rather than MongoDB as its storage layer. Also, it only supports FHIR resources 3.3.0 and below.
+
 ```
 --- WRITES ---
 insertions per second (on average): 152.38
@@ -122,11 +131,13 @@ spread: 1.4565324857334904e-05
 ## Publish
 
 First, you need to have `twine` installedd
+
 ```
 pip install --user --upgrade twine
 ```
 
 Make sure you have bumped the version number in `setup.py`, then run the following:
+
 ```
 python setup.py sdist bdist_wheel
 python -m twine upload dist/*

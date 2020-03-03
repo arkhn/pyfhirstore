@@ -365,7 +365,6 @@ def test_search_offset_reach_max(store: FHIRStore):
     result = store.search("Patient", {}, offset=3)
     assert len(result["items"]) == 0
 
-
 def test_search_size_reach_max(store: FHIRStore):
     result = store.search("Patient", {}, result_size=101)
     assert len(result["items"]) == 3
@@ -477,3 +476,4 @@ def test_search_summary_text(store: FHIRStore):
             },
         },
     ]
+

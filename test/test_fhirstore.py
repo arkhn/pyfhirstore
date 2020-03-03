@@ -3,9 +3,10 @@ from pytest import raises
 
 from bson.objectid import ObjectId
 from pymongo import MongoClient
-from fhirstore import FHIRStore, BadRequestError, NotFoundError
 from jsonschema.exceptions import ValidationError
 from collections import Mapping
+
+from fhirstore import FHIRStore, BadRequestError, NotFoundError, ARKHN_CODE_SYSTEMS
 
 # For now, this class assumes an already existing store exists
 # (store.bootstrap was run)
@@ -146,8 +147,51 @@ class TestFHIRStore:
         with raises(NotFoundError):
             store.delete("Patient", test_patient["id"])
 
-    def test_delete_resource(self, store: FHIRStore, test_patient):
+    def test_delete_missing_param(self, store: FHIRStore, test_patient):
+        """delete() returns None when no matching document was found"""
+
+        with raises(
+            BadRequestError,
+            match="one of: 'instance_id', 'resource_id' or 'source_id' are required",
+        ):
+            store.delete("Patient")
+
+    def test_delete_instance(self, store: FHIRStore, test_patient):
         """delete() finds a document in the database"""
         store.create(test_patient)
         result = store.delete("Patient", test_patient["id"])
-        assert result == test_patient["id"]
+        assert result == 1
+
+    def test_delete_by_resource_id(self, store: FHIRStore, test_patient):
+        """delete() finds a document in the database"""
+        store.create(test_patient)
+
+        resource_id = "pyrogResourceId"
+        metadata = {
+            "tag": [
+                {"system": ARKHN_CODE_SYSTEMS.resource, "code": resource_id},
+                {"code": "some-other-tag"},
+            ]
+        }
+        store.create({"resourceType": "Patient", "id": "pat2", "meta": metadata})
+        store.create({"resourceType": "Patient", "id": "pat3", "meta": metadata})
+
+        result = store.delete("Patient", resource_id=resource_id)
+        assert result == 2
+
+    def test_delete_by_source_id(self, store: FHIRStore, test_patient):
+        """delete() finds a document in the database"""
+        store.create(test_patient)
+
+        source_id = "pyrogSourceId"
+        metadata = {
+            "tag": [
+                {"system": ARKHN_CODE_SYSTEMS.source, "code": source_id},
+                {"code": "some-other-tag"},
+            ]
+        }
+        store.create({"resourceType": "Patient", "id": "pat2", "meta": metadata})
+        store.create({"resourceType": "Patient", "id": "pat3", "meta": metadata})
+
+        result = store.delete("Patient", source_id=source_id)
+        assert result == 2

@@ -1,9 +1,11 @@
 import sys
 import re
 import json
-import datetime
 
-from collections import defaultdict, Mapping
+from collections import defaultdict
+from collections.abc import Mapping
+
+
 from elasticsearch import Elasticsearch
 
 number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}

@@ -7,6 +7,8 @@ from pymongo.errors import WriteError, OperationFailure
 from tqdm import tqdm
 from jsonschema import validate
 from elasticsearch import Elasticsearch
+
+from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
 from fhirstore.search.search_methods import build_core_query
 
@@ -114,7 +116,7 @@ class FHIRStore:
         except WriteError:
             self.validate(resource)
 
-    def read(self, resource_type, resource_id):
+    def read(self, resource_type, instance_id):
         """
         Finds a resource given its type and id.
 
@@ -127,12 +129,12 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        res = self.db[resource_type].find_one({"id": resource_id})
+        res = self.db[resource_type].find_one({"id": instance_id})
         if res is None:
             raise NotFoundError
         return res
 
-    def update(self, resource_type, resource_id, resource):
+    def update(self, resource_type, instance_id, resource):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -151,7 +153,7 @@ class FHIRStore:
 
         try:
             updated = self.db[resource_type].find_one_and_replace(
-                {"id": resource_id}, resource, return_document=ReturnDocument.AFTER
+                {"id": instance_id}, resource, return_document=ReturnDocument.AFTER
             )
             if updated is None:
                 raise NotFoundError
@@ -159,7 +161,7 @@ class FHIRStore:
         except OperationFailure:
             self.validate(resource)
 
-    def patch(self, resource_type, resource_id, patch):
+    def patch(self, resource_type, instance_id, patch):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -179,18 +181,16 @@ class FHIRStore:
 
         try:
             updated = self.db[resource_type].find_one_and_update(
-                {"id": resource_id},
-                {"$set": patch},
-                return_document=ReturnDocument.AFTER,
+                {"id": instance_id}, {"$set": patch}, return_document=ReturnDocument.AFTER,
             )
             if updated is None:
                 raise NotFoundError
             return updated
         except OperationFailure:
-            resource = self.read(resource_type, resource_id)
+            resource = self.read(resource_type, instance_id)
             self.validate({**resource, **patch})
 
-    def delete(self, resource_type, resource_id):
+    def delete(self, resource_type, instance_id=None, resource_id=None, source_id=None):
         """
         Deletes a resource given its type and id.
 
@@ -203,10 +203,39 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        res = self.db[resource_type].delete_one({"id": resource_id})
+        if instance_id:
+            res = self.db[resource_type].delete_one({"id": instance_id})
+        elif resource_id:
+            res = self.db[resource_type].delete_many(
+                {
+                    "meta.tag": {
+                        "$elemMatch": {
+                            "code": {"$eq": resource_id},
+                            "system": {"$eq": ARKHN_CODE_SYSTEMS.resource},
+                        }
+                    }
+                }
+            )
+        elif source_id:
+            res = self.db[resource_type].delete_many(
+                {
+                    "meta.tag": {
+                        "$elemMatch": {
+                            "code": {"$eq": source_id},
+                            "system": {"$eq": ARKHN_CODE_SYSTEMS.source},
+                        }
+                    }
+                }
+            )
+        else:
+            raise BadRequestError(
+                "one of: 'instance_id', 'resource_id' or 'source_id' are required"
+            )
+
         if res.deleted_count == 0:
             raise NotFoundError
-        return resource_id
+
+        return res.deleted_count
 
     def validate(self, resource):
         """
@@ -227,6 +256,7 @@ class FHIRStore:
         
 
     def search(self, resource_type, params, offset=0, result_size=100, elements=None):
+
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
