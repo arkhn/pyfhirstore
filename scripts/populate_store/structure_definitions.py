@@ -1,9 +1,12 @@
 import sys
+import json
+import requests
 
 
 def upload_structure_definitions(bundle_files):
 
     resource_types = ["StructureDefinition", "ConceptMap"]
+    api = "https://fhir.staging.arkhn.org/api"
 
     for bundle_file in bundle_files:
         if bundle_file.endswith(".json"):
@@ -11,7 +14,7 @@ def upload_structure_definitions(bundle_files):
                 bundle = json.load(f)
 
             assert (
-                "resourceType" in data and bundle["resourceType"] == "Bundle"
+                "resourceType" in bundle and bundle["resourceType"] == "Bundle"
             ), f"{bundle_file} must be a FHIR Bundle resource"
 
             for entry in bundle["entry"]:

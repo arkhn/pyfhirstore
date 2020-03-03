@@ -16,10 +16,10 @@ def upload_code_systems():
     # Find hypertext links in table
     links = soup.find("div", {"id": "tabs-fhir"}).findAll("a")
     # Remove normative flags
-    links = [r for r in res if r.get("class") != ["normative-flag"]]
+    links = [link for link in links if link.get("class") != ["normative-flag"]]
 
-    for link in links[:2]:
-        url = r.get("href").replace(".html", ".json")
+    for link in links:
+        url = link.get("href").replace(".html", ".json")
         code_system = requests.get(f"{base_url}/{url}")
         response = requests.post(f"{api}", json=code_system.json())
         if response.status_code != 200:
