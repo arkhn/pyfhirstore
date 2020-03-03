@@ -8,7 +8,7 @@ from tqdm import tqdm
 from jsonschema import validate
 from elasticsearch import Elasticsearch
 from fhirstore.schema import SchemaParser
-from fhirstore.search.search_methods import build_simple_query, validate_parameters
+from fhirstore.search.search_methods import build_core_query
 
 
 class NotFoundError(Exception):
@@ -224,6 +224,7 @@ class FHIRStore:
         if schema is None:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
+        
 
     def search(self, resource_type, params, offset=0, result_size=100, elements=None):
         """
@@ -245,29 +246,18 @@ class FHIRStore:
         search standard.
         """
         self.validate_resource_type(resource_type)
-        validate_parameters(params)
 
-        sub_query = defaultdict(lambda: defaultdict(dict))
-        if len(params) == 0:
-            sub_query = {"match_all": {}}
-        elif len(params) == 1:
-            sub_query = build_simple_query(params)
-        elif len(params) > 1:
-            inter_query = [
-                build_simple_query({sub_key: sub_value})
-                for sub_key, sub_value in params.items()
-            ]
-            sub_query = {"bool": {"must": inter_query}}
-
+        core_query = build_core_query(params)
         query = {
             "min_score": 0.01,
             "from": offset,
             "size": result_size,
-            "query": sub_query,
+            "query": core_query,
         }
 
         if elements:
             query["_source"] = elements
+            
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
         hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
@@ -276,30 +266,19 @@ class FHIRStore:
             "items": [h["_source"] for h in hits["hits"]["hits"]],
             "total": hits["hits"]["total"]["value"],
         }
+        
         if elements:
             bundle["tag"] = {"code": "SUBSETTED"}
 
         return bundle
 
     def count(self, resource_type, params):
-        """Counts how many results match to this query
+        """Counts how many results match this query
         """
         self.validate_resource_type(resource_type)
-        validate_parameters(params)
 
-        sub_query = defaultdict(lambda: defaultdict(dict))
-        if len(params) == 0:
-            sub_query = {"match_all": {}}
-        elif len(params) == 1:
-            sub_query = build_simple_query(params)
-        elif len(params) > 1:
-            inter_query = [
-                build_simple_query({sub_key: sub_value})
-                for sub_key, sub_value in params.items()
-            ]
-            sub_query = {"bool": {"must": inter_query}}
-
-        query = {"query": sub_query}
+        core_query = build_core_query(params)
+        query = {"query": core_query}
 
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
