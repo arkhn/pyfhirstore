@@ -57,7 +57,22 @@
   ],
   "managingOrganization": {
     "reference": "Organization/1",
-    "display": "ACME Healthcare, Inc"
+    "display": "ACME Healthcare, Inc",
+    "identifier": [
+      {
+        "use": "usual",
+        "type": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+              "code": "MR"
+            }
+          ]
+        },
+        "system": "urn:oid:0.7.6.5.4.3.2",
+        "value": "98765"
+      }
+    ]
   },
   "link": [
     {

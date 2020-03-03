@@ -10,7 +10,7 @@ from elasticsearch import Elasticsearch
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
-from fhirstore.search.search_methods import build_simple_query, validate_parameters
+from fhirstore.search.search_methods import build_core_query
 
 
 class NotFoundError(Exception):
@@ -31,7 +31,11 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self, client: MongoClient, client_es: Elasticsearch, db_name: str, resources: dict = {},
+        self,
+        client: MongoClient,
+        client_es: Elasticsearch,
+        db_name: str,
+        resources: dict = {},
     ):
         self.es = client_es
         self.db = client[db_name]
@@ -53,9 +57,13 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
+            resources = tqdm(
+                resources, file=sys.stdout, desc="Bootstrapping collections..."
+            )
         for resource_name, schema in resources:
-            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
+            self.db.create_collection(
+                resource_name, **{"validator": {"$jsonSchema": schema}}
+            )
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
@@ -67,11 +75,15 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections, file=sys.stdout, desc="Loading collections from database...",
+                collections,
+                file=sys.stdout,
+                desc="Loading collections from database...",
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
+            json_schema = self.db.get_collection(collection).options()["validator"][
+                "$jsonSchema"
+            ]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -241,8 +253,10 @@ class FHIRStore:
         if schema is None:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
+        
 
-    def search(self, resource_type, params, offset=0, result_size=100):
+    def search(self, resource_type, params, offset=0, result_size=100, elements=None):
+
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -262,23 +276,45 @@ class FHIRStore:
         search standard.
         """
         self.validate_resource_type(resource_type)
-        validate_parameters(params)
 
-        sub_query = defaultdict(lambda: defaultdict(dict))
-        if len(params) == 0:
-            sub_query = {"match_all": {}}
-        elif len(params) == 1:
-            sub_query = build_simple_query(params)
-        elif len(params) > 1:
-            inter_query = [
-                build_simple_query({sub_key: sub_value}) for sub_key, sub_value in params.items()
-            ]
-            sub_query = {"bool": {"must": inter_query}}
-        query = {"min_score": 0.01, "from": offset, "size": result_size, "query": sub_query}
+        core_query = build_core_query(params)
+        query = {
+            "min_score": 0.01,
+            "from": offset,
+            "size": result_size,
+            "query": core_query,
+        }
 
+        if elements:
+            query["_source"] = elements
+            
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
         hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
-        results = [h["_source"] for h in hits["hits"]["hits"]]
+        bundle = {
+            "resource_type": "Bundle",
+            "items": [h["_source"] for h in hits["hits"]["hits"]],
+            "total": hits["hits"]["total"]["value"],
+        }
+        
+        if elements:
+            bundle["tag"] = {"code": "SUBSETTED"}
 
-        return {"resource_type": "Bundle", "items": results}
+        return bundle
+
+    def count(self, resource_type, params):
+        """Counts how many results match this query
+        """
+        self.validate_resource_type(resource_type)
+
+        core_query = build_core_query(params)
+        query = {"query": core_query}
+
+        # .lower() is used to fix the fact that monstache changes resourceTypes to
+        # all lower case
+        hits = self.es.count(body=query, index=f"fhirstore.{resource_type.lower()}")
+        return {
+            "resource_type": "Bundle",
+            "tag": {"code": "SUBSETTED"},
+            "total": hits["count"],
+        }
