@@ -195,3 +195,5 @@ class TestFHIRStore:
 
         result = store.delete("Patient", source_id=source_id)
         assert result == 2
+
+    # TODO add tests for upload bundle

@@ -318,3 +318,19 @@ class FHIRStore:
             "tag": {"code": "SUBSETTED"},
             "total": hits["count"],
         }
+
+    def upload_bundle(self, bundle):
+        """
+        Upload a bundle of resource instances to the store.
+
+        Args:
+            - bundle: the fhir bundle containing the resources.
+        """
+        if not "resourceType" in bundle or bundle["resourceType"] != "Bundle":
+            raise Exception("input must be a FHIR Bundle resource")
+
+        for entry in bundle["entry"]:
+            if "resource" not in entry:
+                raise Exception("Bundle entry is missing a resource.")
+
+            self.create(entry)
