@@ -3,7 +3,7 @@ import re
 
 from collections import defaultdict
 from pymongo import MongoClient, ReturnDocument
-from pymongo.errors import WriteError, OperationFailure
+from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 from jsonschema import validate
 from elasticsearch import Elasticsearch
@@ -64,6 +64,8 @@ class FHIRStore:
             self.db.create_collection(
                 resource_name, **{"validator": {"$jsonSchema": schema}}
             )
+            # Add unique constraint on id
+            self.db[resource_name].create_index("id", unique=True)
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
@@ -113,6 +115,8 @@ class FHIRStore:
                 resource, bypass_document_validation=bypass_document_validation
             )
             return {**resource, "_id": res.inserted_id}
+        except DuplicateKeyError as e:
+            raise e
         except WriteError:
             self.validate(resource)
 
