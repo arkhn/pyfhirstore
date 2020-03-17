@@ -49,3 +49,10 @@ def test_patient(mongo_client):
 
         if patient.get("_id"):
             mongo_client["Patient"].delete_one({"_id": patient["_id"]})
+
+
+@pytest.fixture(scope="function")
+def test_bundle(mongo_client):
+    with open("test/fixtures/bundle-example.json") as f:
+        bundle = json.load(f)
+        yield bundle
