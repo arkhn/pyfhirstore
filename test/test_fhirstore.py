@@ -1,10 +1,11 @@
 import json
 from pytest import raises
+from unittest.mock import patch
 
 from bson.objectid import ObjectId
 from pymongo import MongoClient
 from jsonschema.exceptions import ValidationError
-from collections import Mapping
+from collections.abc import Mapping
 
 from fhirstore import FHIRStore, BadRequestError, NotFoundError, ARKHN_CODE_SYSTEMS
 
@@ -196,4 +197,13 @@ class TestFHIRStore:
         result = store.delete("Patient", source_id=source_id)
         assert result == 2
 
-    # TODO add tests for upload bundle
+    ###
+    # FHIRStore.upload_bundle()
+    ###
+    @patch("fhirstore.FHIRStore.create")
+    def test_upload_bundle(
+        self, mock_create, store: FHIRStore, mongo_client: MongoClient, test_bundle
+    ):
+        """create() correctly inserts a document in the database"""
+        store.upload_bundle(test_bundle)
+        assert mock_create.call_count == 3
