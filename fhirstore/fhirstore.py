@@ -1,5 +1,6 @@
 import sys
 import re
+import logging
 
 from collections import defaultdict
 from pymongo import MongoClient, ReturnDocument
@@ -337,4 +338,7 @@ class FHIRStore:
             if "resource" not in entry:
                 raise Exception("Bundle entry is missing a resource.")
 
-            self.create(entry)
+            try:
+                self.create(entry["resource"])
+            except DuplicateKeyError as e:
+                logging.warning(f"Document already existed: {e}")
