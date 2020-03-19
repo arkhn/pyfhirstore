@@ -1,5 +1,5 @@
 import json
-from pytest import raises
+from pytest import fixture, raises
 from unittest.mock import patch
 
 from bson.objectid import ObjectId
@@ -9,6 +9,13 @@ from jsonschema.exceptions import ValidationError
 from collections.abc import Mapping
 
 from fhirstore import FHIRStore, BadRequestError, NotFoundError, ARKHN_CODE_SYSTEMS
+
+
+@fixture(autouse=True)
+def reset_store(store):
+    store.reset()
+    store.bootstrap(depth=2, resource="Patient")
+
 
 # For now, this class assumes an already existing store exists
 # (store.bootstrap was run)
