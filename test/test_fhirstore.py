@@ -58,12 +58,6 @@ class TestFHIRStore:
 
     def test_unique_indices(self, store: FHIRStore, mongo_client: MongoClient):
         """create() raises if index is already present"""
-        # index on id
-        store.create({"resourceType": "Patient", "id": "pat1"})
-        with raises(DuplicateKeyError, match='dup key: { id: "pat1" }'):
-            store.create({"resourceType": "Patient", "id": "pat1"})
-
-        # index on (identifier.value, identifier.system)
         store.create(
             {
                 "identifier": [
@@ -71,9 +65,15 @@ class TestFHIRStore:
                     {"value": "value", "system": "system"},
                 ],
                 "resourceType": "Patient",
-                "id": "pat2",
+                "id": "pat1",
             }
         )
+
+        # index on id
+        with raises(DuplicateKeyError, match='dup key: { id: "pat1" }'):
+            store.create({"resourceType": "Patient", "id": "pat1"})
+
+        # index on (identifier.value, identifier.system)
         with raises(
             DuplicateKeyError,
             match='dup key: { identifier.system: "sys", identifier.value: "val" }',
@@ -82,7 +82,7 @@ class TestFHIRStore:
                 {
                     "identifier": [{"value": "val", "system": "sys"}],
                     "resourceType": "Patient",
-                    "id": "pat3",
+                    "id": "pat2",
                 }
             )
         with raises(
@@ -93,7 +93,7 @@ class TestFHIRStore:
                 {
                     "identifier": [{"value": "value", "system": "system"}],
                     "resourceType": "Patient",
-                    "id": "pat3",
+                    "id": "pat2",
                 }
             )
         with raises(
@@ -107,7 +107,7 @@ class TestFHIRStore:
                         {"value": "value", "system": "system"},
                     ],
                     "resourceType": "Patient",
-                    "id": "pat3",
+                    "id": "pat2",
                 }
             )
 

@@ -15,7 +15,7 @@ ES_PASSWORD = os.getenv("ES_PASSWORD")
 ES_URL = os.getenv("ES_URL")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def store():
     client = MongoClient(username=MONGO_USERNAME, password=MONGO_PASSWORD)
     try:
@@ -27,7 +27,7 @@ def store():
 
     fhirstore = FHIRStore(client, client_es, DB_NAME)
     fhirstore.reset()
-    fhirstore.bootstrap(depth=4, resource="Patient")
+    fhirstore.bootstrap(depth=2, resource="Patient")
     return fhirstore
 
 
