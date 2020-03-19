@@ -27,7 +27,7 @@ def store():
 
     fhirstore = FHIRStore(client, client_es, DB_NAME)
     fhirstore.reset()
-    fhirstore.bootstrap(depth=4, resource="Patient")
+    fhirstore.bootstrap(depth=2, resource="Patient")
     return fhirstore
 
 

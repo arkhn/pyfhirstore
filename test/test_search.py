@@ -5,7 +5,7 @@ from pytest import raises
 from time import sleep
 from fhirstore import FHIRStore, NotFoundError
 from fhirstore.search.search_methods import build_element_query, build_simple_query
-from collections import Mapping
+from collections.abc import Mapping
 
 # For now, this class assumes an already existing store exists
 # (store.bootstrap was run)
