@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from bson.objectid import ObjectId
 from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
 from jsonschema.exceptions import ValidationError
 from collections.abc import Mapping
 
@@ -54,6 +55,61 @@ class TestFHIRStore:
             inserted = mongo_client["Patient"].find_one({"_id": result["_id"]})
             assert inserted == patient
             mongo_client["Patient"].delete_one({"_id": patient["_id"]})
+
+    def test_unique_indices(self, store: FHIRStore, mongo_client: MongoClient):
+        """create() raises if index is already present"""
+        # index on id
+        store.create({"resourceType": "Patient", "id": "pat1"})
+        with raises(DuplicateKeyError, match='dup key: { id: "pat1" }'):
+            store.create({"resourceType": "Patient", "id": "pat1"})
+
+        # index on (identifier.value, identifier.system)
+        store.create(
+            {
+                "identifier": [
+                    {"value": "val", "system": "sys"},
+                    {"value": "value", "system": "system"},
+                ],
+                "resourceType": "Patient",
+                "id": "pat2",
+            }
+        )
+        with raises(
+            DuplicateKeyError,
+            match='dup key: { identifier.system: "sys", identifier.value: "val" }',
+        ):
+            store.create(
+                {
+                    "identifier": [{"value": "val", "system": "sys"}],
+                    "resourceType": "Patient",
+                    "id": "pat3",
+                }
+            )
+        with raises(
+            DuplicateKeyError,
+            match='dup key: { identifier.system: "system", identifier.value: "value" }',
+        ):
+            store.create(
+                {
+                    "identifier": [{"value": "value", "system": "system"}],
+                    "resourceType": "Patient",
+                    "id": "pat3",
+                }
+            )
+        with raises(
+            DuplicateKeyError,
+            match='dup key: { identifier.system: "system", identifier.value: "value" }',
+        ):
+            store.create(
+                {
+                    "identifier": [
+                        {"value": "v", "system": "s"},
+                        {"value": "value", "system": "system"},
+                    ],
+                    "resourceType": "Patient",
+                    "id": "pat3",
+                }
+            )
 
     ###
     # FHIRStore.read()
