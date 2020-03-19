@@ -3,7 +3,7 @@ import re
 import logging
 
 from collections import defaultdict
-from pymongo import MongoClient, ReturnDocument
+from pymongo import MongoClient, ReturnDocument, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 from jsonschema import validate
@@ -32,11 +32,7 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self,
-        client: MongoClient,
-        client_es: Elasticsearch,
-        db_name: str,
-        resources: dict = {},
+        self, client: MongoClient, client_es: Elasticsearch, db_name: str, resources: dict = {},
     ):
         self.es = client_es
         self.db = client[db_name]
@@ -58,15 +54,15 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(
-                resources, file=sys.stdout, desc="Bootstrapping collections..."
-            )
+            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
         for resource_name, schema in resources:
-            self.db.create_collection(
-                resource_name, **{"validator": {"$jsonSchema": schema}}
-            )
+            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
             # Add unique constraint on id
             self.db[resource_name].create_index("id", unique=True)
+            # Add unique constraint on (identifier.system, identifier.value)
+            self.db[resource_name].create_index(
+                [("identifier.system", ASCENDING), ("identifier.value", ASCENDING)], unique=True
+            )
             self.resources[resource_name] = schema
 
     def resume(self, show_progress=True):
@@ -78,15 +74,11 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections,
-                file=sys.stdout,
-                desc="Loading collections from database...",
+                collections, file=sys.stdout, desc="Loading collections from database...",
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"][
-                "$jsonSchema"
-            ]
+            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -258,7 +250,6 @@ class FHIRStore:
         if schema is None:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
-        
 
     def search(self, resource_type, params, offset=0, result_size=100, elements=None):
 
@@ -292,7 +283,7 @@ class FHIRStore:
 
         if elements:
             query["_source"] = elements
-            
+
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
         hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
@@ -301,7 +292,7 @@ class FHIRStore:
             "items": [h["_source"] for h in hits["hits"]["hits"]],
             "total": hits["hits"]["total"]["value"],
         }
-        
+
         if elements:
             bundle["tag"] = {"code": "SUBSETTED"}
 
