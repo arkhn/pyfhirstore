@@ -69,7 +69,12 @@ class TestFHIRStore:
             {
                 "identifier": [
                     {"value": "val", "system": "sys"},
-                    {"value": "value", "system": "system"},
+                    {"value": "just_value"},
+                    {
+                        "value": "value",
+                        "system": "system",
+                        "type": {"coding": [{"system": "type_system", "code": "type_code"}]},
+                    },
                 ],
                 "resourceType": "Patient",
                 "id": "pat1",
@@ -83,7 +88,8 @@ class TestFHIRStore:
         # index on (identifier.value, identifier.system)
         with raises(
             DuplicateKeyError,
-            match='dup key: { identifier.system: "sys", identifier.value: "val" }',
+            match='dup key: { identifier.system: "sys", identifier.value: "val", \
+identifier.type.coding.0.system: null, identifier.type.coding.0.code: null }',
         ):
             store.create(
                 {
@@ -94,24 +100,26 @@ class TestFHIRStore:
             )
         with raises(
             DuplicateKeyError,
-            match='dup key: { identifier.system: "system", identifier.value: "value" }',
+            match='dup key: { identifier.system: null, identifier.value: "just_value", \
+identifier.type.coding.0.system: null, identifier.type.coding.0.code: null }',
         ):
             store.create(
-                {
-                    "identifier": [{"value": "value", "system": "system"}],
-                    "resourceType": "Patient",
-                    "id": "pat2",
-                }
+                {"identifier": [{"value": "just_value"}], "resourceType": "Patient", "id": "pat2",}
             )
         with raises(
             DuplicateKeyError,
-            match='dup key: { identifier.system: "system", identifier.value: "value" }',
+            match='dup key: { identifier.system: "system", identifier.value: "value", \
+identifier.type.coding.0.system: "type_system", identifier.type.coding.0.code: "type_code" }',
         ):
             store.create(
                 {
                     "identifier": [
-                        {"value": "v", "system": "s"},
-                        {"value": "value", "system": "system"},
+                        {"value": "new_val"},
+                        {
+                            "value": "value",
+                            "system": "system",
+                            "type": {"coding": [{"system": "type_system", "code": "type_code"}]},
+                        },
                     ],
                     "resourceType": "Patient",
                     "id": "pat2",
