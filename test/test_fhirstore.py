@@ -173,8 +173,8 @@ identifier.type.coding.0.system: "type_system", identifier.type.coding.0.code: "
     def test_update_resource(self, store: FHIRStore, test_patient):
         """update() finds a document in the database"""
         store.create(test_patient)
-        result = store.update("Patient", test_patient["id"], {**test_patient, "gender": "other"})
-        assert result == {**test_patient, "gender": "other"}
+        store.update("Patient", test_patient["id"], {**test_patient, "gender": "other"})
+        assert store.read("Patient", test_patient["id"]) == {**test_patient, "gender": "other"}
 
     ###
     # FHIRStore.patch()
@@ -201,8 +201,8 @@ identifier.type.coding.0.system: "type_system", identifier.type.coding.0.code: "
     def test_patch_resource(self, store: FHIRStore, test_patient):
         """patch() finds a document in the database"""
         store.create(test_patient)
-        result = store.patch("Patient", test_patient["id"], {"gender": "other"})
-        assert result == {**test_patient, "gender": "other"}
+        store.patch("Patient", test_patient["id"], {"gender": "other"})
+        assert store.read("Patient", test_patient["id"]) == {**test_patient, "gender": "other"}
 
     ###
     # FHIRStore.delete()

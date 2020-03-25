@@ -138,7 +138,7 @@ class FHIRStore:
             raise NotFoundError
         return res
 
-    def update(self, resource_type, instance_id, resource):
+    def update(self, resource_type, instance_id, resource, bypass_document_validation=False):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -156,16 +156,16 @@ class FHIRStore:
         self.validate_resource_type(resource_type)
 
         try:
-            updated = self.db[resource_type].find_one_and_replace(
-                {"id": instance_id}, resource, return_document=ReturnDocument.AFTER
+            update_result = self.db[resource_type].replace_one(
+                {"id": instance_id}, resource, bypass_document_validation=bypass_document_validation
             )
-            if updated is None:
+            if update_result.matched_count == 0:
                 raise NotFoundError
-            return updated
+            return update_result
         except OperationFailure:
             self.validate(resource)
 
-    def patch(self, resource_type, instance_id, patch):
+    def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -184,12 +184,14 @@ class FHIRStore:
         self.validate_resource_type(resource_type)
 
         try:
-            updated = self.db[resource_type].find_one_and_update(
-                {"id": instance_id}, {"$set": patch}, return_document=ReturnDocument.AFTER,
+            update_result = self.db[resource_type].update_one(
+                {"id": instance_id},
+                {"$set": patch},
+                bypass_document_validation=bypass_document_validation,
             )
-            if updated is None:
+            if update_result.matched_count == 0:
                 raise NotFoundError
-            return updated
+            return update_result
         except OperationFailure:
             resource = self.read(resource_type, instance_id)
             self.validate({**resource, **patch})
