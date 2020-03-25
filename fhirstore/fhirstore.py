@@ -224,9 +224,17 @@ class FHIRStore:
         if schema is None:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
-        
 
-    def search(self, resource_type, params, offset=0, result_size=100, elements=None):
+    def search(
+        self,
+        resource_type,
+        params,
+        result_size=100,
+        sort=None,
+        offset=0,
+        elements=None,
+        include=None,
+    ):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -255,20 +263,48 @@ class FHIRStore:
             "query": core_query,
         }
 
+        if sort:
+            query["sort"] = sort
+
         if elements:
             query["_source"] = elements
-            
+
         # .lower() is used to fix the fact that monstache changes resourceTypes to
         # all lower case
         hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
         bundle = {
             "resource_type": "Bundle",
-            "items": [h["_source"] for h in hits["hits"]["hits"]],
+            "items": [
+                {"resource": h["_source"], "search": {"mode": "match"}}
+                for h in hits["hits"]["hits"]
+            ],
             "total": hits["hits"]["total"]["value"],
         }
-        
+
         if elements:
             bundle["tag"] = {"code": "SUBSETTED"}
+
+        if include:
+            for item in bundle["items"]:
+                for element in include:
+                    included_resource, included_id = re.split(
+                        "\/", item[element]["reference"], maxsplit=1
+                    )
+                    included_hits = self.es.search(
+                        body={
+                            "simple_query_string": {
+                                "query": included_id,
+                                "fields": "id",
+                            }
+                        },
+                        index=f"fhirstore.{included_resource.lower()}",
+                    )
+            [
+                bundle["items"].append(
+                    {"resource": h["_source"], "search": {"mode": "include"}}
+                )
+                for h in included_hits["hits"]["hits"]
+            ]
 
         return bundle
 
