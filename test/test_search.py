@@ -40,7 +40,7 @@ def insert_es(es_client):
         es_client.count(index="fhirstore.patient")["count"] < 3
         and es_client.count(index="fhirstore.medicationrequest")["count"] < 1
     ):
-        sleep(2 / 10000)
+        sleep(5 / 10000)
     return es_client
 
 
@@ -501,7 +501,6 @@ def test_handle_pipe(store: FHIRStore):
     result = store.search(
         "MedicationRequest", {"contained.code.coding": ["http://snomed.info/sct|324252006"]},
     )
-    print(result["items"][0]["resource"]["id"])
     assert result["items"][0]["resource"]["id"] == "medrx0302"
     assert (
         result["items"][0]["resource"]["contained"][0]["code"]["coding"][0]["system"]
