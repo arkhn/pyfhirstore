@@ -25,6 +25,16 @@ def insert_es(es_client):
         with open("test/fixtures/patient-example-with-extensions.json") as h:
             patient_3 = json.load(h)
             es_client.index(index="fhirstore.patient", body=patient_3)
+    if not es_client.indices.exists("fhirstore.medicationrequest"):
+        with open("test/fixtures/medicationrequest-example.json") as h:
+            medicationrequest_1 = json.load(h)
+            es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_1)
+            
+    if not es_client.indices.exists("fhirstore.practitioner"):
+        with open("test/fixtures/practitioner-example.json") as h:
+            practitioner_1 = json.load(h)
+            es_client.index(index="fhirstore.practitioner", body=practitioner_1)
+    
 
     while es_client.count(index="fhirstore.patient")["count"] < 3:
         sleep(2 / 10000)
@@ -490,7 +500,7 @@ def test_handle_pipe(store: FHIRStore):
     )
     assert result["items"][0]["resource"]["id"] == "medrx0302"
     assert (
-        result["items"][0]["resources"]["contained"][0]["code"]["coding"][0]["system"]
+        result["items"][0]["resource"]["contained"][0]["code"]["coding"][0]["system"]
         == "http://snomed.info/sct"
     )
     assert (
