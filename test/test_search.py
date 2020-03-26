@@ -172,15 +172,10 @@ def test_composite_query_pipe():
             "must": [
                 {"match": {"contained.code.coding.system": "http://snomed.info/sct"}},
                 {
-                    "match": {
-                        "simple_query_string": {
-                            "query": "324252006",
-                            "fields": [
-                                "contained.code.coding.code",
-                                "contained.code.coding.value",
-                            ],
-                        },
-                    }
+                    "simple_query_string": {
+                        "query": "324252006",
+                        "fields": ["contained.code.coding.code", "contained.code.coding.value",],
+                    },
                 },
             ]
         }

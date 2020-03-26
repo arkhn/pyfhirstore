@@ -79,14 +79,7 @@ def build_element_query(key, value):
         system, code = re.split(r"\|", value)
         element_query["bool"]["must"] = [{"match": {f"{key}.system": system}}]
         element_query["bool"]["must"].append(
-            {
-                "match": {
-                    "simple_query_string": {
-                        "query": code,
-                        "fields": [f"{key}.code", f"{key}.value"],
-                    }
-                }
-            }
+            {"simple_query_string": {"query": code, "fields": [f"{key}.code", f"{key}.value"],}}
         )
 
     elif isinstance(value, str):
