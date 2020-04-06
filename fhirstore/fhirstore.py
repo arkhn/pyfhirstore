@@ -271,11 +271,16 @@ class FHIRStore:
             bundle["tag"] = {"code": "SUBSETTED"}
 
         if include:
+            #For each result instance
             for item in bundle["items"]:
-                for element in include:
+                #For each attribute to include
+                for attribute in include:
+                    # split the reference attribute "Practioner/123" into a 
+                    # resource "Practioner" and an id "123"
                     included_resource, included_id = re.split(
-                        "\/", item[element]["reference"], maxsplit=1
+                        "\/", item[attribute]["reference"], maxsplit=1
                     )
+                    # search the db for the specific resource to include
                     included_hits = self.es.search(
                         body={"simple_query_string": {"query": included_id, "fields": "id",}},
                         index=f"fhirstore.{included_resource.lower()}",

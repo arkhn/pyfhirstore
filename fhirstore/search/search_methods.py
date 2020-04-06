@@ -30,7 +30,7 @@ def build_element_query(key, value):
     numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
     eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
     special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
-    pipe_suffix = re.search(r"(.*)\|(.*)", f"{value}")
+    pipe_suffix = re.search(r"(.*)\|(.*)", value)
 
     string_modif = re.search(
         r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
