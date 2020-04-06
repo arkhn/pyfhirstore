@@ -27,13 +27,13 @@ def insert_es(es_client):
             es_client.index(index="fhirstore.patient", body=patient_3)
 
     if not es_client.indices.exists("fhirstore.medicationrequest"):
-        with open("test/fixtures/medicationrequest-example.json") as h:
-            medicationrequest_1 = json.load(h)
+        with open("test/fixtures/medicationrequest-example.json") as i:
+            medicationrequest_1 = json.load(i)
             es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_1)
 
     if not es_client.indices.exists("fhirstore.practitioner"):
-        with open("test/fixtures/practitioner-example.json") as h:
-            practitioner_1 = json.load(h)
+        with open("test/fixtures/practitioner-example.json") as j:
+            practitioner_1 = json.load(j)
             es_client.index(index="fhirstore.practitioner", body=practitioner_1)
 
     while (
@@ -441,6 +441,9 @@ def test_count_all(store: FHIRStore):
     assert result["total"] == 3
     assert result["tag"]["code"] == "SUBSETTED"
 
+def test_count_medicationrequest(store: FHIRStore):
+    result = store.search("MedicationRequest", {})
+    assert result["total"] == 1
 
 def test_count_some(store: FHIRStore):
     result = store.count("Patient", {"identifier.value": ["ne12345"]})
