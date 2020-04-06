@@ -1,11 +1,21 @@
 import json
-from pytest import raises
+from pytest import fixture, raises
+from unittest.mock import patch
 
 from bson.objectid import ObjectId
 from pymongo import MongoClient
-from fhirstore import FHIRStore, BadRequestError, NotFoundError
+from pymongo.errors import DuplicateKeyError
 from jsonschema.exceptions import ValidationError
-from collections import Mapping
+from collections.abc import Mapping
+
+from fhirstore import FHIRStore, BadRequestError, NotFoundError, ARKHN_CODE_SYSTEMS
+
+
+@fixture(autouse=True)
+def reset_store(store):
+    store.reset()
+    store.bootstrap(depth=2, resource="Patient")
+
 
 # For now, this class assumes an already existing store exists
 # (store.bootstrap was run)
@@ -52,6 +62,69 @@ class TestFHIRStore:
             inserted = mongo_client["Patient"].find_one({"_id": result["_id"]})
             assert inserted == patient
             mongo_client["Patient"].delete_one({"_id": patient["_id"]})
+
+    def test_unique_indices(self, store: FHIRStore, mongo_client: MongoClient):
+        """create() raises if index is already present"""
+        store.create(
+            {
+                "identifier": [
+                    {"value": "val", "system": "sys"},
+                    {"value": "just_value"},
+                    {
+                        "value": "value",
+                        "system": "system",
+                        "type": {"coding": [{"system": "type_system", "code": "type_code"}]},
+                    },
+                ],
+                "resourceType": "Patient",
+                "id": "pat1",
+            }
+        )
+
+        # index on id
+        with raises(DuplicateKeyError, match='dup key: { id: "pat1" }'):
+            store.create({"resourceType": "Patient", "id": "pat1"})
+
+        # index on (identifier.value, identifier.system)
+        with raises(
+            DuplicateKeyError,
+            match='dup key: { identifier.system: "sys", identifier.value: "val", \
+identifier.type.coding.0.system: null, identifier.type.coding.0.code: null }',
+        ):
+            store.create(
+                {
+                    "identifier": [{"value": "val", "system": "sys"}],
+                    "resourceType": "Patient",
+                    "id": "pat2",
+                }
+            )
+        with raises(
+            DuplicateKeyError,
+            match='dup key: { identifier.system: null, identifier.value: "just_value", \
+identifier.type.coding.0.system: null, identifier.type.coding.0.code: null }',
+        ):
+            store.create(
+                {"identifier": [{"value": "just_value"}], "resourceType": "Patient", "id": "pat2",}
+            )
+        with raises(
+            DuplicateKeyError,
+            match='dup key: { identifier.system: "system", identifier.value: "value", \
+identifier.type.coding.0.system: "type_system", identifier.type.coding.0.code: "type_code" }',
+        ):
+            store.create(
+                {
+                    "identifier": [
+                        {"value": "new_val"},
+                        {
+                            "value": "value",
+                            "system": "system",
+                            "type": {"coding": [{"system": "type_system", "code": "type_code"}]},
+                        },
+                    ],
+                    "resourceType": "Patient",
+                    "id": "pat2",
+                }
+            )
 
     ###
     # FHIRStore.read()
@@ -100,8 +173,8 @@ class TestFHIRStore:
     def test_update_resource(self, store: FHIRStore, test_patient):
         """update() finds a document in the database"""
         store.create(test_patient)
-        result = store.update("Patient", test_patient["id"], {**test_patient, "gender": "other"})
-        assert result == {**test_patient, "gender": "other"}
+        store.update("Patient", test_patient["id"], {**test_patient, "gender": "other"})
+        assert store.read("Patient", test_patient["id"]) == {**test_patient, "gender": "other"}
 
     ###
     # FHIRStore.patch()
@@ -128,8 +201,8 @@ class TestFHIRStore:
     def test_patch_resource(self, store: FHIRStore, test_patient):
         """patch() finds a document in the database"""
         store.create(test_patient)
-        result = store.patch("Patient", test_patient["id"], {"gender": "other"})
-        assert result == {**test_patient, "gender": "other"}
+        store.patch("Patient", test_patient["id"], {"gender": "other"})
+        assert store.read("Patient", test_patient["id"]) == {**test_patient, "gender": "other"}
 
     ###
     # FHIRStore.delete()
@@ -146,8 +219,62 @@ class TestFHIRStore:
         with raises(NotFoundError):
             store.delete("Patient", test_patient["id"])
 
-    def test_delete_resource(self, store: FHIRStore, test_patient):
+    def test_delete_missing_param(self, store: FHIRStore, test_patient):
+        """delete() returns None when no matching document was found"""
+
+        with raises(
+            BadRequestError,
+            match="one of: 'instance_id', 'resource_id' or 'source_id' are required",
+        ):
+            store.delete("Patient")
+
+    def test_delete_instance(self, store: FHIRStore, test_patient):
         """delete() finds a document in the database"""
         store.create(test_patient)
         result = store.delete("Patient", test_patient["id"])
-        assert result == test_patient["id"]
+        assert result == 1
+
+    def test_delete_by_resource_id(self, store: FHIRStore, test_patient):
+        """delete() finds a document in the database"""
+        store.create(test_patient)
+
+        resource_id = "pyrogResourceId"
+        metadata = {
+            "tag": [
+                {"system": ARKHN_CODE_SYSTEMS.resource, "code": resource_id},
+                {"code": "some-other-tag"},
+            ]
+        }
+        store.create({"resourceType": "Patient", "id": "pat2", "meta": metadata})
+        store.create({"resourceType": "Patient", "id": "pat3", "meta": metadata})
+
+        result = store.delete("Patient", resource_id=resource_id)
+        assert result == 2
+
+    def test_delete_by_source_id(self, store: FHIRStore, test_patient):
+        """delete() finds a document in the database"""
+        store.create(test_patient)
+
+        source_id = "pyrogSourceId"
+        metadata = {
+            "tag": [
+                {"system": ARKHN_CODE_SYSTEMS.source, "code": source_id},
+                {"code": "some-other-tag"},
+            ]
+        }
+        store.create({"resourceType": "Patient", "id": "pat2", "meta": metadata})
+        store.create({"resourceType": "Patient", "id": "pat3", "meta": metadata})
+
+        result = store.delete("Patient", source_id=source_id)
+        assert result == 2
+
+    ###
+    # FHIRStore.upload_bundle()
+    ###
+    @patch("fhirstore.FHIRStore.create")
+    def test_upload_bundle(
+        self, mock_create, store: FHIRStore, mongo_client: MongoClient, test_bundle
+    ):
+        """create() correctly inserts a document in the database"""
+        store.upload_bundle(test_bundle)
+        assert mock_create.call_count == 3

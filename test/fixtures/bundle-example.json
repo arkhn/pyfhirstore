@@ -1,0 +1,477 @@
+{
+    "resourceType": "Bundle",
+    "id": "bundle-example",
+    "meta": {
+        "lastUpdated": "2019-11-01T09:29:23.356+11:00"
+    },
+    "type": "collection",
+    "entry": [
+        {
+            "fullUrl": "http://url/patient/example",
+            "resource": {
+                "resourceType": "Patient",
+                "id": "pat1",
+                "text": {
+                    "status": "generated",
+                    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\n      \n      \u003cp\u003ePatient Donald DUCK @ Acme Healthcare, Inc. MR \u003d 654321\u003c/p\u003e\n    \n    \u003c/div\u003e"
+                },
+                "identifier": [
+                    {
+                        "use": "usual",
+                        "type": {
+                            "coding": [
+                                {
+                                    "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                                    "code": "MR"
+                                }
+                            ]
+                        },
+                        "system": "urn:oid:0.1.2.3.4.5.6.7",
+                        "value": "654321"
+                    }
+                ],
+                "active": true,
+                "name": [
+                    {
+                        "use": "official",
+                        "family": "Donald",
+                        "given": [
+                            "Duck"
+                        ]
+                    }
+                ],
+                "gender": "male",
+                "photo": [
+                    {
+                        "contentType": "image/gif",
+                        "data": "R0lGODlhEwARAPcAAAAAAAAA/+9aAO+1AP/WAP/eAP/eCP/eEP/eGP/nAP/nCP/nEP/nIf/nKf/nUv/nWv/vAP/vCP/vEP/vGP/vIf/vKf/vMf/vOf/vWv/vY//va//vjP/3c//3lP/3nP//tf//vf///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////yH5BAEAAAEALAAAAAATABEAAAi+AAMIDDCgYMGBCBMSvMCQ4QCFCQcwDBGCA4cLDyEGECDxAoAQHjxwyKhQAMeGIUOSJJjRpIAGDS5wCDly4AALFlYOgHlBwwOSNydM0AmzwYGjBi8IHWoTgQYORg8QIGDAwAKhESI8HIDgwQaRDI1WXXAhK9MBBzZ8/XDxQoUFZC9IiCBh6wEHGz6IbNuwQoSpWxEgyLCXL8O/gAnylNlW6AUEBRIL7Og3KwQIiCXb9HsZQoIEUzUjNEiaNMKAAAA7"
+                    }
+                ],
+                "contact": [
+                    {
+                        "relationship": [
+                            {
+                                "coding": [
+                                    {
+                                        "system": "http://terminology.hl7.org/CodeSystem/v2-0131",
+                                        "code": "E"
+                                    }
+                                ]
+                            }
+                        ],
+                        "organization": {
+                            "reference": "Organization/1",
+                            "display": "Walt Disney Corporation"
+                        }
+                    }
+                ],
+                "managingOrganization": {
+                    "reference": "Organization/1",
+                    "display": "ACME Healthcare, Inc",
+                    "identifier": [
+                        {
+                            "use": "usual",
+                            "type": {
+                                "coding": [
+                                    {
+                                        "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                                        "code": "MR"
+                                    }
+                                ]
+                            },
+                            "system": "urn:oid:0.7.6.5.4.3.2",
+                            "value": "98765"
+                        }
+                    ]
+                },
+                "link": [
+                    {
+                        "other": {
+                            "reference": "Patient/pat2"
+                        },
+                        "type": "seealso"
+                    }
+                ],
+                "meta": {
+                    "tag": [
+                        {
+                            "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+                            "code": "HTEST",
+                            "display": "test health data"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "fullUrl": "http://hl7.org/fhir/CodeSystem/example",
+            "resource": {
+                "resourceType": "CodeSystem",
+                "id": "example",
+                "meta": {
+                    "profile": [
+                        "http://hl7.org/fhir/StructureDefinition/shareablecodesystem"
+                    ]
+                },
+                "text": {
+                    "status": "generated",
+                    "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">\n      <p>CodeSystem &quot;ACME Codes for Cholesterol&quot;: This is an example code system that includes \n        all the codes for serum cholesterol defined by ACME inc.</p>\n      <p>Developed by: FHIR project team (example)</p>\n      <p>Published for testing on 28-Jan 2016</p>\n      <p>This code system defines all the ACME codes for serum cholesterol:</p>\n      <table class=\"grid\">\n        <tr>\n          <td>\n            <b>Code</b>\n          </td>\n          <td>\n            <b>Display</b>\n          </td>\n          <td>\n            <b>Definition</b>\n          </td>\n        </tr>\n        <tr>\n          <td>chol-mmol</td>\n          <td>SChol (mmol/L)</td>\n          <td>Serum Cholesterol, in mmol/L</td>\n        </tr>\n        <tr>\n          <td>chol-mass</td>\n          <td>SChol (mg/L)</td>\n          <td>Serum Cholesterol, in mg/L</td>\n        </tr>\n        <tr>\n          <td>chol</td>\n          <td>SChol</td>\n          <td>Serum Cholesterol</td>\n        </tr>\n      </table>\n    </div>"
+                },
+                "url": "http://hl7.org/fhir/CodeSystem/example",
+                "identifier": [
+                    {
+                        "system": "http://acme.com/identifiers/codesystems",
+                        "value": "internal-cholesterol-inl"
+                    }
+                ],
+                "version": "20160128",
+                "name": "ACMECholCodesBlood",
+                "title": "ACME Codes for Cholesterol in Serum/Plasma",
+                "status": "draft",
+                "experimental": true,
+                "date": "2016-01-28",
+                "publisher": "Acme Co",
+                "contact": [
+                    {
+                        "name": "FHIR project team",
+                        "telecom": [
+                            {
+                                "system": "url",
+                                "value": "http://hl7.org/fhir"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This is an example code system that includes all the ACME codes for serum/plasma cholesterol from v2.36.",
+                "caseSensitive": true,
+                "content": "complete",
+                "filter": [
+                    {
+                        "code": "acme-plasma",
+                        "description": "An internal filter used to select codes that are only used with plasma",
+                        "operator": [
+                            "="
+                        ],
+                        "value": "the value of this filter is either 'true' or 'false'"
+                    }
+                ],
+                "concept": [
+                    {
+                        "code": "chol-mmol",
+                        "display": "SChol (mmol/L)",
+                        "definition": "Serum Cholesterol, in mmol/L",
+                        "designation": [
+                            {
+                                "use": {
+                                    "system": "http://acme.com/config/fhir/codesystems/internal",
+                                    "code": "internal-label"
+                                },
+                                "value": "From ACME POC Testing"
+                            }
+                        ]
+                    },
+                    {
+                        "code": "chol-mass",
+                        "display": "SChol (mg/L)",
+                        "definition": "Serum Cholesterol, in mg/L",
+                        "designation": [
+                            {
+                                "use": {
+                                    "system": "http://acme.com/config/fhir/codesystems/internal",
+                                    "code": "internal-label"
+                                },
+                                "value": "From Paragon Labs"
+                            }
+                        ]
+                    },
+                    {
+                        "code": "chol",
+                        "display": "SChol",
+                        "definition": "Serum Cholesterol",
+                        "designation": [
+                            {
+                                "use": {
+                                    "system": "http://acme.com/config/fhir/codesystems/internal",
+                                    "code": "internal-label"
+                                },
+                                "value": "Obdurate Labs uses this with both kinds of units..."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "fullUrl": "http://hl7.org/fhir/StructureDefinition/valueset-expression",
+            "resource": {
+                "resourceType": "StructureDefinition",
+                "id": "valueset-expression",
+                "extension": [
+                    {
+                        "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
+                        "valueCode": "vocab"
+                    },
+                    {
+                        "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
+                        "valueInteger": 1
+                    }
+                ],
+                "url": "http://hl7.org/fhir/StructureDefinition/valueset-expression",
+                "version": "4.0.1",
+                "name": "expression",
+                "status": "draft",
+                "date": "2019-11-01T09:29:23+11:00",
+                "publisher": "HL7",
+                "description": "An expression that provides an alternative definition of the content of the value set. There are two different ways to use this expression extension: If both an expression and a compose element is present, the compose is understood the make the same statement as the expression. If there is no compose, the expression is the only definition of the value set, and the value set can only be processed by a server that understands the expression syntax, it that is computable.",
+                "fhirVersion": "4.0.1",
+                "mapping": [
+                    {
+                        "identity": "rim",
+                        "uri": "http://hl7.org/v3",
+                        "name": "RIM Mapping"
+                    }
+                ],
+                "kind": "complex-type",
+                "abstract": false,
+                "context": [
+                    {
+                        "type": "element",
+                        "expression": "ValueSet"
+                    }
+                ],
+                "type": "Extension",
+                "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+                "derivation": "constraint",
+                "snapshot": {
+                    "element": [
+                        {
+                            "id": "Extension",
+                            "path": "Extension",
+                            "short": "An alternative computable expression of the value set content",
+                            "definition": "An expression that provides an alternative definition of the content of the value set. There are two different ways to use this expression extension: If both an expression and a compose element is present, the compose is understood the make the same statement as the expression. If there is no compose, the expression is the only definition of the value set, and the value set can only be processed by a server that understands the expression syntax, it that is computable.",
+                            "comment": "The expression may be a reference or the actual expression, and ss expected to be a computable format (use the [rules-text extension](extension-valueset-rules-text.html) for a non-computable description).",
+                            "min": 0,
+                            "max": "1",
+                            "base": {
+                                "path": "Extension",
+                                "min": 0,
+                                "max": "*"
+                            },
+                            "condition": [
+                                "ele-1"
+                            ],
+                            "constraint": [
+                                {
+                                    "key": "ele-1",
+                                    "severity": "error",
+                                    "human": "All FHIR elements must have a @value or children",
+                                    "expression": "hasValue() or (children().count() > id.count())",
+                                    "xpath": "@value|f:*|h:div",
+                                    "source": "http://hl7.org/fhir/StructureDefinition/Element"
+                                },
+                                {
+                                    "key": "ext-1",
+                                    "severity": "error",
+                                    "human": "Must have either extensions or value[x], not both",
+                                    "expression": "extension.exists() != value.exists()",
+                                    "xpath": "exists(f:extension)!=exists(f:*[starts-with(local-name(.), 'value')])",
+                                    "source": "http://hl7.org/fhir/StructureDefinition/Extension"
+                                }
+                            ],
+                            "isModifier": false
+                        },
+                        {
+                            "id": "Extension.id",
+                            "path": "Extension.id",
+                            "representation": [
+                                "xmlAttr"
+                            ],
+                            "short": "Unique id for inter-element referencing",
+                            "definition": "Unique id for the element within a resource (for internal references). This may be any string value that does not contain spaces.",
+                            "min": 0,
+                            "max": "1",
+                            "base": {
+                                "path": "Element.id",
+                                "min": 0,
+                                "max": "1"
+                            },
+                            "type": [
+                                {
+                                    "extension": [
+                                        {
+                                            "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type",
+                                            "valueUrl": "string"
+                                        }
+                                    ],
+                                    "code": "http://hl7.org/fhirpath/System.String"
+                                }
+                            ],
+                            "isModifier": false,
+                            "isSummary": false,
+                            "mapping": [
+                                {
+                                    "identity": "rim",
+                                    "map": "n/a"
+                                }
+                            ]
+                        },
+                        {
+                            "id": "Extension.extension",
+                            "path": "Extension.extension",
+                            "slicing": {
+                                "discriminator": [
+                                    {
+                                        "type": "value",
+                                        "path": "url"
+                                    }
+                                ],
+                                "description": "Extensions are always sliced by (at least) url",
+                                "rules": "open"
+                            },
+                            "short": "Extension",
+                            "definition": "An Extension",
+                            "min": 0,
+                            "max": "0",
+                            "base": {
+                                "path": "Element.extension",
+                                "min": 0,
+                                "max": "*"
+                            },
+                            "type": [
+                                {
+                                    "code": "Extension"
+                                }
+                            ],
+                            "constraint": [
+                                {
+                                    "key": "ele-1",
+                                    "severity": "error",
+                                    "human": "All FHIR elements must have a @value or children",
+                                    "expression": "hasValue() or (children().count() > id.count())",
+                                    "xpath": "@value|f:*|h:div",
+                                    "source": "http://hl7.org/fhir/StructureDefinition/Element"
+                                },
+                                {
+                                    "key": "ext-1",
+                                    "severity": "error",
+                                    "human": "Must have either extensions or value[x], not both",
+                                    "expression": "extension.exists() != value.exists()",
+                                    "xpath": "exists(f:extension)!=exists(f:*[starts-with(local-name(.), \"value\")])",
+                                    "source": "http://hl7.org/fhir/StructureDefinition/Extension"
+                                }
+                            ],
+                            "isModifier": false,
+                            "isSummary": false
+                        },
+                        {
+                            "id": "Extension.url",
+                            "path": "Extension.url",
+                            "representation": [
+                                "xmlAttr"
+                            ],
+                            "short": "identifies the meaning of the extension",
+                            "definition": "Source of the definition for the extension code - a logical name or a URL.",
+                            "comment": "The definition may point directly to a computable or human-readable definition of the extensibility codes, or it may be a logical URI as declared in some other specification. The definition SHALL be a URI for the Structure Definition defining the extension.",
+                            "min": 1,
+                            "max": "1",
+                            "base": {
+                                "path": "Extension.url",
+                                "min": 1,
+                                "max": "1"
+                            },
+                            "type": [
+                                {
+                                    "extension": [
+                                        {
+                                            "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type",
+                                            "valueUrl": "uri"
+                                        }
+                                    ],
+                                    "code": "http://hl7.org/fhirpath/System.String"
+                                }
+                            ],
+                            "fixedUri": "http://hl7.org/fhir/StructureDefinition/valueset-expression",
+                            "isModifier": false,
+                            "isSummary": false,
+                            "mapping": [
+                                {
+                                    "identity": "rim",
+                                    "map": "N/A"
+                                }
+                            ]
+                        },
+                        {
+                            "id": "Extension.value[x]",
+                            "path": "Extension.value[x]",
+                            "short": "Value of extension",
+                            "definition": "Value of extension - must be one of a constrained set of the data types (see [Extensibility](http://hl7.org/fhir/extensibility.html) for a list).",
+                            "min": 1,
+                            "max": "1",
+                            "base": {
+                                "path": "Extension.value[x]",
+                                "min": 0,
+                                "max": "1"
+                            },
+                            "type": [
+                                {
+                                    "code": "Expression"
+                                }
+                            ],
+                            "constraint": [
+                                {
+                                    "key": "ele-1",
+                                    "severity": "error",
+                                    "human": "All FHIR elements must have a @value or children",
+                                    "expression": "hasValue() or (children().count() > id.count())",
+                                    "xpath": "@value|f:*|h:div",
+                                    "source": "http://hl7.org/fhir/StructureDefinition/Element"
+                                }
+                            ],
+                            "isModifier": false,
+                            "isSummary": false,
+                            "mapping": [
+                                {
+                                    "identity": "rim",
+                                    "map": "N/A"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "differential": {
+                    "element": [
+                        {
+                            "id": "Extension",
+                            "path": "Extension",
+                            "short": "An alternative computable expression of the value set content",
+                            "definition": "An expression that provides an alternative definition of the content of the value set. There are two different ways to use this expression extension: If both an expression and a compose element is present, the compose is understood the make the same statement as the expression. If there is no compose, the expression is the only definition of the value set, and the value set can only be processed by a server that understands the expression syntax, it that is computable.",
+                            "comment": "The expression may be a reference or the actual expression, and ss expected to be a computable format (use the [rules-text extension](extension-valueset-rules-text.html) for a non-computable description).",
+                            "min": 0,
+                            "max": "1"
+                        },
+                        {
+                            "id": "Extension.extension",
+                            "path": "Extension.extension",
+                            "max": "0"
+                        },
+                        {
+                            "id": "Extension.url",
+                            "path": "Extension.url",
+                            "fixedUri": "http://hl7.org/fhir/StructureDefinition/valueset-expression"
+                        },
+                        {
+                            "id": "Extension.value[x]",
+                            "path": "Extension.value[x]",
+                            "min": 1,
+                            "type": [
+                                {
+                                    "code": "Expression"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -27,9 +27,9 @@ def store():
 
     fhirstore = FHIRStore(client, client_es, DB_NAME)
     fhirstore.reset()
-    fhirstore.bootstrap(depth=4, resource="Patient")
-    fhirstore.bootstrap(depth=4, resource="Practitioner")
-    fhirstore.bootstrap(depth=4, resource="MedicationRequest")
+    fhirstore.bootstrap(depth=2, resource="Patient")
+    fhirstore.bootstrap(depth=2, resource="Practitioner")
+    fhirstore.bootstrap(depth=2, resource="MedicationRequest")
 
     return fhirstore
 
@@ -53,21 +53,10 @@ def test_patient(mongo_client):
         if patient.get("_id"):
             mongo_client["Patient"].delete_one({"_id": patient["_id"]})
 
-@pytest.fixture(scope="function")
-def test_practitioner(mongo_client):
-    with open("test/fixtures/practitioner-example.json") as f:
-        practitioner = json.load(f)
-        yield practitioner
-
-        if practitioner.get("_id"):
-            mongo_client["Practitioner"].delete_one({"_id": practitioner["_id"]})
 
 
 @pytest.fixture(scope="function")
-def test_medicationrequest(mongo_client):
-    with open("test/fixtures/medicationrequest-example.json") as f:
-        medicationrequest = json.load(f)
-        yield medicationrequest
-
-        if medicationrequest.get("_id"):
-            mongo_client["MedicationRequest"].delete_one({"_id": medicationrequest["_id"]})
+def test_bundle(mongo_client):
+    with open("test/fixtures/bundle-example.json") as f:
+        bundle = json.load(f)
+        yield bundle

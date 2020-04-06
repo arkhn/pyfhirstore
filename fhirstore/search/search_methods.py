@@ -2,7 +2,10 @@ import sys
 import re
 import json
 
-from collections import defaultdict, Mapping
+from collections import defaultdict
+from collections.abc import Mapping
+
+
 from elasticsearch import Elasticsearch
 
 number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
@@ -31,6 +34,7 @@ def build_element_query(key, value):
     eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
     special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
     pipe_suffix = re.search(r"(.*)\|(.*)", value)
+
 
     string_modif = re.search(
         r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
@@ -61,7 +65,10 @@ def build_element_query(key, value):
             element_query["simple_query_string"]["fields"] = [string_field]
         elif string_modifier == "identifier":
             element_query["simple_query_string"]["query"] = f"{value}"
-            element_query["simple_query_string"]["fields"] = [f"{string_field}.identifier.value"]
+            element_query["simple_query_string"]["fields"] = [
+                f"{string_field}.identifier.value"
+            ]
+
 
     elif numeric_prefix:
         element_query["range"][key] = {
@@ -72,7 +79,9 @@ def build_element_query(key, value):
 
     elif special_prefix:
         if special_prefix.group(1) == "ne":
-            element_query["simple_query_string"]["query"] = f"-{special_prefix.group(2)}"
+            element_query["simple_query_string"][
+                "query"
+            ] = f"-{special_prefix.group(2)}"
             element_query["simple_query_string"]["fields"] = [key]
 
     elif pipe_suffix:
@@ -126,7 +135,8 @@ def build_core_query(params):
         core_query = build_simple_query(params)
     elif len(params) > 1:
         inter_query = [
-            build_simple_query({sub_key: sub_value}) for sub_key, sub_value in params.items()
+            build_simple_query({sub_key: sub_value})
+            for sub_key, sub_value in params.items()
         ]
         core_query = {"bool": {"must": inter_query}}
 
