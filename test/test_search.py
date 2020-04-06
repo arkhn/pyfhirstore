@@ -39,6 +39,7 @@ def insert_es(es_client):
     while (
         es_client.count(index="fhirstore.patient")["count"] < 3
         and es_client.count(index="fhirstore.medicationrequest")["count"] < 1
+        and es_client.count(index="fhirstore.practitioner")["count"] < 1
     ):
         sleep(5 / 10000)
     return es_client
