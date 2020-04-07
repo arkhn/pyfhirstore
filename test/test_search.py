@@ -30,7 +30,7 @@ def insert_es(es_client):
         with open("test/fixtures/medicationrequest-example.json") as i:
             medicationrequest_1 = json.load(i)
             es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_1)
-            
+
     if not es_client.indices.exists("fhirstore.practitioner"):
         with open("test/fixtures/practitioner-example.json") as j:
             practitioner_1 = json.load(j)
@@ -49,10 +49,6 @@ def insert_es(es_client):
 # search_methods
 ###
 
-def test_store_es(store: FHIRStore):
-    print(store.es.indices.exists("fhirstore.practitioner"))
-    print("count medicationrequests")
-    print(store.es.count(index="fhirstore.medicationrequest")["count"])
 
 def test_simple_query_input_not_dict():
     """raises an error if the input is not 
