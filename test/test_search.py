@@ -12,7 +12,7 @@ from collections.abc import Mapping
 
 
 @pytest.fixture(scope="module")
-def insert_es(es_client):
+def insert_patient(es_client):
     if not es_client.indices.exists("fhirstore.patient"):
         with open("test/fixtures/patient-example.json") as f:
             patient_1 = json.load(f)
@@ -26,6 +26,13 @@ def insert_es(es_client):
             patient_3 = json.load(h)
             es_client.index(index="fhirstore.patient", body=patient_3)
 
+    while es_client.count(index="fhirstore.patient")["count"] < 3:
+        sleep(5 / 10000)
+    return es_client
+
+
+@pytest.fixture(scope="module")
+def insert_other_resources(es_client):
     if not es_client.indices.exists("fhirstore.medicationrequest"):
         with open("test/fixtures/medicationrequest-example.json") as i:
             medicationrequest_1 = json.load(i)
@@ -37,8 +44,7 @@ def insert_es(es_client):
             es_client.index(index="fhirstore.practitioner", body=practitioner_1)
 
     while (
-        es_client.count(index="fhirstore.patient")["count"] < 3
-        and es_client.count(index="fhirstore.medicationrequest")["count"] < 1
+        es_client.count(index="fhirstore.medicationrequest")["count"] < 1
         and es_client.count(index="fhirstore.practitioner")["count"] < 1
     ):
         sleep(5 / 10000)
@@ -83,10 +89,7 @@ def test_element_query_output():
 def test_simple_query_correct():
     """Validates that the ES query is correct"""
     result = build_simple_query({"birthDate": ["1974-12-25"]})
-    assert result == {
-        "simple_query_string": {"fields": ["birthDate"], "query": "(1974-12-25)*"}
-    }
-
+    assert result == {"simple_query_string": {"fields": ["birthDate"], "query": "(1974-12-25)*"}}
 
 
 def test_simple_query_correct_or():
@@ -110,19 +113,8 @@ def test_simple_query_correct_and():
     assert result == {
         "bool": {
             "must": [
-                {
-                    "simple_query_string": {
-                        "fields": ["name.family"],
-                        "query": "(Donald)*",
-                    }
-                },
-                {
-                    "simple_query_string": {
-                        "fields": ["name.family"],
-                        "query": "(Chalmers)*",
-                    }
-                },
-
+                {"simple_query_string": {"fields": ["name.family"], "query": "(Donald)*",}},
+                {"simple_query_string": {"fields": ["name.family"], "query": "(Chalmers)*",}},
             ]
         }
     }
@@ -132,9 +124,7 @@ def test_simple_query_contains():
     """Validates that the ES query is correct with modifier contains
     """
     result = build_simple_query({"name.family:contains": ["Dona"]})
-    assert result == {
-        "query_string": {"query": "*Dona*", "default_field": "name.family"}
-    }
+    assert result == {"query_string": {"query": "*Dona*", "default_field": "name.family"}}
 
 
 def test_simple_query_exact():
@@ -229,7 +219,7 @@ def test_search_bad_params(store: FHIRStore):
         store.search("Patient", "gender")
 
 
-def test_search_output_type(store: FHIRStore, insert_es):
+def test_search_output_type(store: FHIRStore):
     """Check that the output type is correct
     """
     result = store.search("Patient", {})
@@ -256,16 +246,13 @@ def test_search_one_param_simple(store: FHIRStore):
 def test_search_one_param_multiple(store: FHIRStore):
     """Checks that multiple elements of one parameter are queried
     """
-    result = store.search(
-        "Patient", {"multiple": {"name.family": ["Chalmers", "Levin"]}}
-    )
+    result = store.search("Patient", {"multiple": {"name.family": ["Chalmers", "Levin"]}})
     assert len(result["items"]) == 2
     assert any(
         element["resource"]["name"][0]["family"] == ("Chalmers" or "Levin")
         for element in result["items"]
     )
     assert all(element["resource"]["name"][0]["family"] != "Donald" for element in result["items"])
-
 
 
 def test_search_one_param_modifier_num(store: FHIRStore):
@@ -290,9 +277,7 @@ def test_search_one_param_modifier_num(store: FHIRStore):
 def test_search_one_param_modifier_str_contains(store: FHIRStore):
     """Checks that "contains" string modifier works
     """
-    result = store.search(
-        "Patient", {"managingOrganization.reference:contains": ["Organization"]}
-    )
+    result = store.search("Patient", {"managingOrganization.reference:contains": ["Organization"]})
     assert len(result["items"]) == 3
     assert any(
         element["resource"]["managingOrganization"]["reference"] == "Organization/1"
@@ -300,7 +285,6 @@ def test_search_one_param_modifier_str_contains(store: FHIRStore):
     )
     assert any(
         element["resource"]["managingOrganization"]["reference"]
-
         != "Organization/2.16.840.1.113883.19.5"
         for element in result["items"]
     )
@@ -314,7 +298,6 @@ def test_search_one_param_modifier_str_exact(store: FHIRStore):
     assert all(element["resource"]["name"][0]["family"] == "Donald" for element in result["items"])
     assert all(
         element["resource"]["name"][0]["family"] != ("Chalmers" or "Levin")
-
         for element in result["items"]
     )
 
@@ -322,9 +305,7 @@ def test_search_one_param_modifier_str_exact(store: FHIRStore):
 def test_search_two_params_and(store: FHIRStore):
     """Checks two parameter "and" search
     """
-    result = store.search(
-        "Patient", {"identifier.value": ["12345"], "name.family": ["Chalmers"]}
-    )
+    result = store.search("Patient", {"identifier.value": ["12345"], "name.family": ["Chalmers"]})
     assert all(
         element["resource"]["identifier"][0]["value"] == "12345" for element in result["items"]
     )
@@ -358,10 +339,7 @@ def test_search_and_or(store: FHIRStore):
     """
     result = store.search(
         "Patient",
-        {
-            "multiple": {"name.family": ["Levin", "Chalmers"]},
-            "identifier.value": ["12345"],
-        },
+        {"multiple": {"name.family": ["Levin", "Chalmers"]}, "identifier.value": ["12345"],},
     )
     assert len(result["items"]) == 2
     assert all(
@@ -441,9 +419,11 @@ def test_count_all(store: FHIRStore):
     assert result["total"] == 3
     assert result["tag"]["code"] == "SUBSETTED"
 
+
 def test_count_medicationrequest(store: FHIRStore):
     result = store.count("MedicationRequest", {})
     assert result["total"] == 1
+
 
 def test_count_some(store: FHIRStore):
     result = store.count("Patient", {"identifier.value": ["ne12345"]})
@@ -555,4 +535,3 @@ def test_sort_desc(store: FHIRStore):
     assert (
         result["items"][0]["resource"]["birthDate"] >= result["items"][1]["resource"]["birthDate"]
     )
-
