@@ -43,18 +43,6 @@ def insert_medicationrequest(es_client):
     return es_client
 
 
-@pytest.fixture(scope="module")
-def insert_practitioner(es_client):
-    if not es_client.indices.exists("fhirstore.practitioner"):
-        with open("test/fixtures/practitioner-example.json") as j:
-            practitioner_1 = json.load(j)
-            es_client.index(index="fhirstore.practitioner", body=practitioner_1)
-
-    while es_client.count(index="fhirstore.practitioner")["count"] < 1:
-        sleep(5 / 10000)
-    return es_client
-
-
 ###
 # search_methods
 ###
@@ -234,13 +222,6 @@ def test_search_medicationrequest(store: FHIRStore, insert_medicationrequest):
     """Check that medicationrequest was inserted properly
     """
     result = store.search("MedicationRequest", {})
-    assert result["total"] == 1
-
-
-def test_search_practitioner(store: FHIRStore, insert_practitioner):
-    """Check that practitioner was inserted properly
-    """
-    result = store.search("Practitioner", {})
     assert result["total"] == 1
 
 
