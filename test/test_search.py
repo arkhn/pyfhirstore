@@ -219,13 +219,24 @@ def test_search_bad_params(store: FHIRStore):
         store.search("Patient", "gender")
 
 
-def test_search_output_type(store: FHIRStore):
+def test_search_output_type(store: FHIRStore, insert_patient):
     """Check that the output type is correct
     """
     result = store.search("Patient", {})
     assert result["resource_type"] == "Bundle"
 
-
+def test_search_medicationrequest(store: FHIRStore, insert_other_resources):
+    """Check that medicationrequest was inserted properly
+    """
+    result = store.search("MedicationRequest", {})
+    assert result["total"] == 1
+    
+def test_search_practitioner(store: FHIRStore, insert_other_resources):
+    """Check that practitioner was inserted properly
+    """
+    result = store.search("Practitioner", {})
+    assert result["total"] == 1
+    
 def test_search_no_parameters(store: FHIRStore):
     """Checks that all elements of the resource are returned
     """
