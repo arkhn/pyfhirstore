@@ -231,7 +231,7 @@ def test_search_medicationrequest(store: FHIRStore, insert_other_resources):
     result = store.search("MedicationRequest", {})
     assert result["total"] == 1
     
-def test_search_practitioner(store: FHIRStore, insert_other_resources):
+def test_search_practitioner(store: FHIRStore):
     """Check that practitioner was inserted properly
     """
     result = store.search("Practitioner", {})
