@@ -43,10 +43,7 @@ def insert_medicationrequest(es_client):
             practitioner_1 = json.load(j)
             es_client.index(index="fhirstore.practitioner", body=practitioner_1)
 
-    while (
-        es_client.count(index="fhirstore.medicationrequest")["count"] < 1
-        and es_client.count(index="fhirstore.practitioner")["count"] < 1
-    ):
+    while es_client.count(index="fhirstore.medicationrequest")["count"] < 1:
         sleep(5 / 10000)
     return es_client
 
@@ -58,12 +55,9 @@ def insert_practitioner(es_client):
             practitioner_1 = json.load(j)
             es_client.index(index="fhirstore.practitioner", body=practitioner_1)
 
-    while (
-        es_client.count(index="fhirstore.practitioner")["count"] < 1
-    ):
+    while es_client.count(index="fhirstore.practitioner")["count"] < 1:
         sleep(5 / 10000)
     return es_client
-
 
 
 ###
@@ -240,18 +234,21 @@ def test_search_output_type(store: FHIRStore, insert_patient):
     result = store.search("Patient", {})
     assert result["resource_type"] == "Bundle"
 
+
 def test_search_medicationrequest(store: FHIRStore, insert_medicationrequest):
     """Check that medicationrequest was inserted properly
     """
     result = store.search("MedicationRequest", {})
     assert result["total"] == 1
-    
+
+
 def test_search_practitioner(store: FHIRStore, insert_practitioner):
     """Check that practitioner was inserted properly
     """
     result = store.search("Practitioner", {})
     assert result["total"] == 1
-    
+
+
 def test_search_no_parameters(store: FHIRStore):
     """Checks that all elements of the resource are returned
     """
