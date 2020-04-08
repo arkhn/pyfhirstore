@@ -38,11 +38,6 @@ def insert_medicationrequest(es_client):
             medicationrequest_1 = json.load(i)
             es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_1)
 
-    if not es_client.indices.exists("fhirstore.practitioner"):
-        with open("test/fixtures/practitioner-example.json") as j:
-            practitioner_1 = json.load(j)
-            es_client.index(index="fhirstore.practitioner", body=practitioner_1)
-
     while es_client.count(index="fhirstore.medicationrequest")["count"] < 1:
         sleep(5 / 10000)
     return es_client
