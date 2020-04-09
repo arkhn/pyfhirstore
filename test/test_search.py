@@ -12,7 +12,7 @@ from collections.abc import Mapping
 
 
 @pytest.fixture(scope="module")
-def insert_es(es_client):
+def insert_patient(es_client):
     if not es_client.indices.exists("fhirstore.patient"):
         with open("test/fixtures/patient-example.json") as f:
             patient_1 = json.load(f)
@@ -27,7 +27,19 @@ def insert_es(es_client):
             es_client.index(index="fhirstore.patient", body=patient_3)
 
     while es_client.count(index="fhirstore.patient")["count"] < 3:
-        sleep(2 / 10000)
+        sleep(5 / 10000)
+    return es_client
+
+
+@pytest.fixture(scope="module")
+def insert_medicationrequest(es_client):
+    if not es_client.indices.exists("fhirstore.medicationrequest"):
+        with open("test/fixtures/medicationrequest-example.json") as i:
+            medicationrequest_1 = json.load(i)
+            es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_1)
+
+    while es_client.count(index="fhirstore.medicationrequest")["count"] < 1:
+        sleep(5 / 10000)
     return es_client
 
 
@@ -69,9 +81,7 @@ def test_element_query_output():
 def test_simple_query_correct():
     """Validates that the ES query is correct"""
     result = build_simple_query({"birthDate": ["1974-12-25"]})
-    assert result == {
-        "simple_query_string": {"fields": ["birthDate"], "query": "(1974-12-25)*"}
-    }
+    assert result == {"simple_query_string": {"fields": ["birthDate"], "query": "(1974-12-25)*"}}
 
 
 def test_simple_query_correct_or():
@@ -95,18 +105,8 @@ def test_simple_query_correct_and():
     assert result == {
         "bool": {
             "must": [
-                {
-                    "simple_query_string": {
-                        "fields": ["name.family"],
-                        "query": "(Donald)*",
-                    }
-                },
-                {
-                    "simple_query_string": {
-                        "fields": ["name.family"],
-                        "query": "(Chalmers)*",
-                    }
-                },
+                {"simple_query_string": {"fields": ["name.family"], "query": "(Donald)*",}},
+                {"simple_query_string": {"fields": ["name.family"], "query": "(Chalmers)*",}},
             ]
         }
     }
@@ -116,9 +116,7 @@ def test_simple_query_contains():
     """Validates that the ES query is correct with modifier contains
     """
     result = build_simple_query({"name.family:contains": ["Dona"]})
-    assert result == {
-        "query_string": {"query": "*Dona*", "default_field": "name.family"}
-    }
+    assert result == {"query_string": {"query": "*Dona*", "default_field": "name.family"}}
 
 
 def test_simple_query_exact():
@@ -177,6 +175,25 @@ def test_composite_query_modifiers():
     }
 
 
+def test_composite_query_pipe():
+    """Validates that the ES query with token | is correct
+    """
+    result = build_simple_query({"contained.code.coding": ["http://snomed.info/sct|324252006"]})
+    assert result == {
+        "bool": {
+            "must": [
+                {"match": {"contained.code.coding.system": "http://snomed.info/sct"}},
+                {
+                    "simple_query_string": {
+                        "query": "324252006",
+                        "fields": ["contained.code.coding.code", "contained.code.coding.value",],
+                    },
+                },
+            ]
+        }
+    }
+
+
 ###
 # FHIRStore.search()
 ###
@@ -194,11 +211,18 @@ def test_search_bad_params(store: FHIRStore):
         store.search("Patient", "gender")
 
 
-def test_search_output_type(store: FHIRStore, insert_es):
+def test_search_output_type(store: FHIRStore, insert_patient):
     """Check that the output type is correct
     """
     result = store.search("Patient", {})
     assert result["resource_type"] == "Bundle"
+
+
+def test_search_medicationrequest(store: FHIRStore, insert_medicationrequest):
+    """Check that medicationrequest was inserted properly
+    """
+    result = store.search("MedicationRequest", {})
+    assert result["total"] == 1
 
 
 def test_search_no_parameters(store: FHIRStore):
@@ -214,22 +238,20 @@ def test_search_one_param_simple(store: FHIRStore):
     result = store.search("Patient", {"identifier.value": ["654321"]})
     assert len(result["items"]) == 1
     assert all(
-        element["identifier"][0]["value"] == "654321" for element in result["items"]
+        element["resource"]["identifier"][0]["value"] == "654321" for element in result["items"]
     )
 
 
 def test_search_one_param_multiple(store: FHIRStore):
     """Checks that multiple elements of one parameter are queried
     """
-    result = store.search(
-        "Patient", {"multiple": {"name.family": ["Chalmers", "Levin"]}}
-    )
+    result = store.search("Patient", {"multiple": {"name.family": ["Chalmers", "Levin"]}})
     assert len(result["items"]) == 2
     assert any(
-        element["name"][0]["family"] == ("Chalmers" or "Levin")
+        element["resource"]["name"][0]["family"] == ("Chalmers" or "Levin")
         for element in result["items"]
     )
-    assert all(element["name"][0]["family"] != "Donald" for element in result["items"])
+    assert all(element["resource"]["name"][0]["family"] != "Donald" for element in result["items"])
 
 
 def test_search_one_param_modifier_num(store: FHIRStore):
@@ -247,23 +269,21 @@ def test_search_one_param_modifier_num(store: FHIRStore):
         result = store.search("Patient", {"identifier.value": [f"{mod}654321"]})
         modif = number_modifier_matching[mod]
         for element in result["items"]:
-            vals = element["identifier"][0]["value"]
+            vals = element["resource"]["identifier"][0]["value"]
             assert f"{vals}{modif}654321"
 
 
 def test_search_one_param_modifier_str_contains(store: FHIRStore):
     """Checks that "contains" string modifier works
     """
-    result = store.search(
-        "Patient", {"managingOrganization.reference:contains": ["Organization"]}
-    )
+    result = store.search("Patient", {"managingOrganization.reference:contains": ["Organization"]})
     assert len(result["items"]) == 3
     assert any(
-        element["managingOrganization"]["reference"] == "Organization/1"
+        element["resource"]["managingOrganization"]["reference"] == "Organization/1"
         for element in result["items"]
     )
     assert any(
-        element["managingOrganization"]["reference"]
+        element["resource"]["managingOrganization"]["reference"]
         != "Organization/2.16.840.1.113883.19.5"
         for element in result["items"]
     )
@@ -274,9 +294,9 @@ def test_search_one_param_modifier_str_exact(store: FHIRStore):
     """
     result = store.search("Patient", {"name.family:exact": ["Donald"]})
     assert len(result["items"]) == 1
-    assert all(element["name"][0]["family"] == "Donald" for element in result["items"])
+    assert all(element["resource"]["name"][0]["family"] == "Donald" for element in result["items"])
     assert all(
-        element["name"][0]["family"] != ("Chalmers" or "Levin")
+        element["resource"]["name"][0]["family"] != ("Chalmers" or "Levin")
         for element in result["items"]
     )
 
@@ -284,20 +304,18 @@ def test_search_one_param_modifier_str_exact(store: FHIRStore):
 def test_search_two_params_and(store: FHIRStore):
     """Checks two parameter "and" search
     """
-    result = store.search(
-        "Patient", {"identifier.value": ["12345"], "name.family": ["Chalmers"]}
+    result = store.search("Patient", {"identifier.value": ["12345"], "name.family": ["Chalmers"]})
+    assert all(
+        element["resource"]["identifier"][0]["value"] == "12345" for element in result["items"]
     )
     assert all(
-        element["identifier"][0]["value"] == "12345" for element in result["items"]
+        element["resource"]["identifier"][0]["value"] != "654321" for element in result["items"]
     )
     assert all(
-        element["identifier"][0]["value"] != "654321" for element in result["items"]
+        element["resource"]["name"][0]["family"] == "Chalmers" for element in result["items"]
     )
     assert all(
-        element["name"][0]["family"] == "Chalmers" for element in result["items"]
-    )
-    assert all(
-        element["name"][0]["family"] != "Donald" or "Levin"
+        element["resource"]["name"][0]["family"] != "Donald" or "Levin"
         for element in result["items"]
     )
     assert len(result["items"]) == 1
@@ -309,10 +327,10 @@ def test_search_one_params_and(store: FHIRStore):
     result = store.search("Patient", {"name.given": ["Peter", "James"]})
     assert len(result["items"]) == 1
     assert any(
-        element["name"][0]["given"] == "Peter" or "James" for element in result["items"]
+        element["resource"]["name"][0]["given"] == "Peter" or "James" for element in result["items"]
     )
-    assert all(element["name"][0]["given"] != "Henry" for element in result["items"])
-    assert all(element["name"][0]["given"] != "Duck" for element in result["items"])
+    assert all(element["resource"]["name"][0]["given"] != "Henry" for element in result["items"])
+    assert all(element["resource"]["name"][0]["given"] != "Duck" for element in result["items"])
 
 
 def test_search_and_or(store: FHIRStore):
@@ -320,23 +338,20 @@ def test_search_and_or(store: FHIRStore):
     """
     result = store.search(
         "Patient",
-        {
-            "multiple": {"name.family": ["Levin", "Chalmers"]},
-            "identifier.value": ["12345"],
-        },
+        {"multiple": {"name.family": ["Levin", "Chalmers"]}, "identifier.value": ["12345"],},
     )
     assert len(result["items"]) == 2
     assert all(
-        element["identifier"][0]["value"] != "654321" for element in result["items"]
+        element["resource"]["identifier"][0]["value"] != "654321" for element in result["items"]
     )
     assert all(
-        element["identifier"][0]["value"] == "12345" for element in result["items"]
+        element["resource"]["identifier"][0]["value"] == "12345" for element in result["items"]
     )
     assert all(
-        element["name"][0]["family"] == "Levin" or "Chalmers"
+        element["resource"]["name"][0]["family"] == "Levin" or "Chalmers"
         for element in result["items"]
     )
-    assert all(element["name"][0]["family"] != "Donald" for element in result["items"])
+    assert all(element["resource"]["name"][0]["family"] != "Donald" for element in result["items"])
 
 
 def test_search_nothing_found(store: FHIRStore):
@@ -365,6 +380,7 @@ def test_search_offset_reach_max(store: FHIRStore):
     result = store.search("Patient", {}, offset=3)
     assert len(result["items"]) == 0
 
+
 def test_search_size_reach_max(store: FHIRStore):
     result = store.search("Patient", {}, result_size=101)
     assert len(result["items"]) == 3
@@ -372,7 +388,7 @@ def test_search_size_reach_max(store: FHIRStore):
 
 def test_search_simple_array(store: FHIRStore):
     result = store.search("Patient", {"name.family": ["Windsor"]})
-    assert result["items"][0]["name"][2]["family"] == "Windsor"
+    assert result["items"][0]["resource"]["name"][2]["family"] == "Windsor"
 
 
 def test_search_multiple_modifiers(store: FHIRStore):
@@ -393,7 +409,7 @@ def test_search_ne(store: FHIRStore):
 def test_search_identifier(store: FHIRStore):
     result = store.search("Patient", {"managingOrganization:identifier": ["98765"]})
     assert (
-        result["items"][0]["managingOrganization"]["identifier"][0]["value"] == "98765"
+        result["items"][0]["resource"]["managingOrganization"]["identifier"][0]["value"] == "98765"
     )
 
 
@@ -401,6 +417,11 @@ def test_count_all(store: FHIRStore):
     result = store.count("Patient", {})
     assert result["total"] == 3
     assert result["tag"]["code"] == "SUBSETTED"
+
+
+def test_count_medicationrequest(store: FHIRStore):
+    result = store.count("MedicationRequest", {})
+    assert result["total"] == 1
 
 
 def test_count_some(store: FHIRStore):
@@ -414,9 +435,9 @@ def test_search_element(store: FHIRStore):
     assert result["total"] == 3
     assert result["tag"]["code"] == "SUBSETTED"
     assert result["items"] == [
-        {"gender": "male"},
-        {"gender": "male", "birthDate": "1932-09-24"},
-        {"gender": "male", "birthDate": "1974-12-25"},
+        {"resource": {"gender": "male"}, "search": {"mode": "match"}},
+        {"resource": {"gender": "male", "birthDate": "1932-09-24"}, "search": {"mode": "match"},},
+        {"resource": {"gender": "male", "birthDate": "1974-12-25"}, "search": {"mode": "match"},},
     ]
 
 
@@ -425,9 +446,9 @@ def test_search_two_elements(store: FHIRStore):
     assert result["total"] == 3
     assert result["tag"]["code"] == "SUBSETTED"
     assert result["items"] == [
-        {},
-        {"birthDate": "1932-09-24"},
-        {"birthDate": "1974-12-25"},
+        {"resource": {}, "search": {"mode": "match"}},
+        {"resource": {"birthDate": "1932-09-24"}, "search": {"mode": "match"}},
+        {"resource": {"birthDate": "1974-12-25"}, "search": {"mode": "match"}},
     ]
 
 
@@ -437,43 +458,79 @@ def test_search_summary_text(store: FHIRStore):
     assert result["tag"]["code"] == "SUBSETTED"
     assert result["items"] == [
         {
-            "id": "pat1",
-            "meta": {
-                "tag": [
-                    {
-                        "code": "HTEST",
-                        "display": "test health data",
-                        "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
-                    }
-                ]
+            "resource": {
+                "meta": {
+                    "tag": [
+                        {
+                            "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+                            "code": "HTEST",
+                            "display": "test health data",
+                        }
+                    ]
+                },
+                "id": "pat1",
+                "text": {
+                    "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n      \n      <p>Patient Donald DUCK @ Acme Healthcare, Inc. MR = 654321</p>\n    \n    </div>',
+                    "status": "generated",
+                },
             },
-            "text": {
-                "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n      \n      <p>Patient Donald DUCK @ Acme Healthcare, Inc. MR = 654321</p>\n    \n    </div>',
-                "status": "generated",
-            },
+            "search": {"mode": "match"},
         },
         {
-            "id": "xcda",
-            "text": {
-                "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n      \n      <p>Henry Levin the 7th</p>\n    \n    </div>',
-                "status": "generated",
+            "resource": {
+                "id": "xcda",
+                "text": {
+                    "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n      \n      <p>Henry Levin the 7th</p>\n    \n    </div>',
+                    "status": "generated",
+                },
             },
+            "search": {"mode": "match"},
         },
         {
-            "id": "example",
-            "meta": {
-                "tag": [
-                    {
-                        "code": "HTEST",
-                        "display": "test health data",
-                        "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
-                    }
-                ]
+            "resource": {
+                "meta": {
+                    "tag": [
+                        {
+                            "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+                            "code": "HTEST",
+                            "display": "test health data",
+                        }
+                    ]
+                },
+                "id": "example",
+                "text": {
+                    "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n\t\t\t<table>\n\t\t\t\t<tbody>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Name</td>\n\t\t\t\t\t\t<td>Peter James \n              <b>Chalmers</b> (&quot;Jim&quot;)\n            </td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Address</td>\n\t\t\t\t\t\t<td>534 Erewhon, Pleasantville, Vic, 3999</td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Contacts</td>\n\t\t\t\t\t\t<td>Home: unknown. Work: (03) 5555 6473</td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Id</td>\n\t\t\t\t\t\t<td>MRN: 12345 (Acme Healthcare)</td>\n\t\t\t\t\t</tr>\n\t\t\t\t</tbody>\n\t\t\t</table>\n\t\t</div>',
+                    "status": "generated",
+                },
             },
-            "text": {
-                "div": '<div xmlns="http://www.w3.org/1999/xhtml">\n\t\t\t<table>\n\t\t\t\t<tbody>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Name</td>\n\t\t\t\t\t\t<td>Peter James \n              <b>Chalmers</b> (&quot;Jim&quot;)\n            </td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Address</td>\n\t\t\t\t\t\t<td>534 Erewhon, Pleasantville, Vic, 3999</td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Contacts</td>\n\t\t\t\t\t\t<td>Home: unknown. Work: (03) 5555 6473</td>\n\t\t\t\t\t</tr>\n\t\t\t\t\t<tr>\n\t\t\t\t\t\t<td>Id</td>\n\t\t\t\t\t\t<td>MRN: 12345 (Acme Healthcare)</td>\n\t\t\t\t\t</tr>\n\t\t\t\t</tbody>\n\t\t\t</table>\n\t\t</div>',
-                "status": "generated",
-            },
+            "search": {"mode": "match"},
         },
     ]
 
+
+def test_handle_pipe(store: FHIRStore):
+    result = store.search(
+        "MedicationRequest", {"contained.code.coding": ["http://snomed.info/sct|324252006"]},
+    )
+    assert result["items"][0]["resource"]["id"] == "medrx0302"
+    assert (
+        result["items"][0]["resource"]["contained"][0]["code"]["coding"][0]["system"]
+        == "http://snomed.info/sct"
+    )
+    assert (
+        result["items"][0]["resource"]["contained"][0]["code"]["coding"][0]["code"] == "324252006"
+    )
+
+
+def test_sort(store: FHIRStore):
+    result = store.search("Patient", {}, sort=["birthDate"])
+    assert (
+        result["items"][0]["resource"]["birthDate"] <= result["items"][1]["resource"]["birthDate"]
+    )
+
+
+def test_sort_desc(store: FHIRStore):
+    result = store.search("Patient", {}, sort={"birthDate": {"order": "desc"}})
+    assert (
+        result["items"][0]["resource"]["birthDate"] >= result["items"][1]["resource"]["birthDate"]
+    )

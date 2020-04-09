@@ -28,6 +28,9 @@ def store():
     fhirstore = FHIRStore(client, client_es, DB_NAME)
     fhirstore.reset()
     fhirstore.bootstrap(depth=2, resource="Patient")
+    fhirstore.bootstrap(depth=2, resource="Practitioner")
+    fhirstore.bootstrap(depth=2, resource="MedicationRequest")
+
     return fhirstore
 
 
@@ -49,6 +52,7 @@ def test_patient(mongo_client):
 
         if patient.get("_id"):
             mongo_client["Patient"].delete_one({"_id": patient["_id"]})
+
 
 
 @pytest.fixture(scope="function")

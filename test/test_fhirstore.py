@@ -15,6 +15,7 @@ from fhirstore import FHIRStore, BadRequestError, NotFoundError, ARKHN_CODE_SYST
 def reset_store(store):
     store.reset()
     store.bootstrap(depth=2, resource="Patient")
+    store.bootstrap(depth=2, resource="MedicationRequest")
 
 
 # For now, this class assumes an already existing store exists

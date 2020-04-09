@@ -33,6 +33,8 @@ def build_element_query(key, value):
     numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
     eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
     special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
+    pipe_suffix = re.search(r"(.*)\|(.*)", value)
+
 
     string_modif = re.search(
         r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
@@ -67,6 +69,7 @@ def build_element_query(key, value):
                 f"{string_field}.identifier.value"
             ]
 
+
     elif numeric_prefix:
         element_query["range"][key] = {
             number_prefix_matching[numeric_prefix.group(1)]: numeric_prefix.group(2)
@@ -80,6 +83,13 @@ def build_element_query(key, value):
                 "query"
             ] = f"-{special_prefix.group(2)}"
             element_query["simple_query_string"]["fields"] = [key]
+
+    elif pipe_suffix:
+        system, code = re.split(r"\|", value)
+        element_query["bool"]["must"] = [{"match": {f"{key}.system": system}}]
+        element_query["bool"]["must"].append(
+            {"simple_query_string": {"query": code, "fields": [f"{key}.code", f"{key}.value"],}}
+        )
 
     elif isinstance(value, str):
         element_query["simple_query_string"]["query"] = f"({value})*"

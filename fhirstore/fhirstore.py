@@ -260,8 +260,16 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, resource_type, params, offset=0, result_size=100, elements=None):
-
+    def search(
+        self,
+        resource_type,
+        params,
+        result_size=100,
+        sort=None,
+        offset=0,
+        elements=None,
+        include=None,
+    ):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -290,6 +298,10 @@ class FHIRStore:
             "query": core_query,
         }
 
+        if sort:
+            query["sort"] = sort
+
+
         if elements:
             query["_source"] = elements
 
@@ -298,12 +310,36 @@ class FHIRStore:
         hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
         bundle = {
             "resource_type": "Bundle",
-            "items": [h["_source"] for h in hits["hits"]["hits"]],
+            "items": [
+                {"resource": h["_source"], "search": {"mode": "match"}}
+                for h in hits["hits"]["hits"]
+            ],
+
             "total": hits["hits"]["total"]["value"],
         }
 
         if elements:
             bundle["tag"] = {"code": "SUBSETTED"}
+
+        if include:
+            #For each result instance
+            for item in bundle["items"]:
+                #For each attribute to include
+                for attribute in include:
+                    # split the reference attribute "Practioner/123" into a 
+                    # resource "Practioner" and an id "123"
+                    included_resource, included_id = re.split(
+                        "\/", item[attribute]["reference"], maxsplit=1
+                    )
+                    # search the db for the specific resource to include
+                    included_hits = self.es.search(
+                        body={"simple_query_string": {"query": included_id, "fields": "id",}},
+                        index=f"fhirstore.{included_resource.lower()}",
+                    )
+            [
+                bundle["items"].append({"resource": h["_source"], "search": {"mode": "include"}})
+                for h in included_hits["hits"]["hits"]
+            ]
 
         return bundle
 
