@@ -328,9 +328,12 @@ class FHIRStore:
                 for attribute in include:
                     # split the reference attribute "Practioner/123" into a 
                     # resource "Practioner" and an id "123"
+                    print(item["resource"][attribute]["reference"])
                     included_resource, included_id = re.split(
-                        "\/", item[attribute]["reference"], maxsplit=1
+                        "\/", item["resource"][attribute]["reference"], maxsplit=1
                     )
+                    # Handle error here 
+                    
                     # search the db for the specific resource to include
                     included_hits = self.es.search(
                         body={"simple_query_string": {"query": included_id, "fields": "id",}},
