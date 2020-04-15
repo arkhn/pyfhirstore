@@ -32,7 +32,11 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self, client: MongoClient, client_es: Elasticsearch, db_name: str, resources: dict = {},
+        self,
+        client: MongoClient,
+        client_es: Elasticsearch,
+        db_name: str,
+        resources: dict = {},
     ):
         self.es = client_es
         self.db = client[db_name]
@@ -54,9 +58,13 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
+            resources = tqdm(
+                resources, file=sys.stdout, desc="Bootstrapping collections..."
+            )
         for resource_name, schema in resources:
-            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
+            self.db.create_collection(
+                resource_name, **{"validator": {"$jsonSchema": schema}}
+            )
             # Add unique constraint on id
             self.db[resource_name].create_index("id", unique=True)
             # Add unique constraint on (identifier.system, identifier.value)
@@ -81,11 +89,15 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections, file=sys.stdout, desc="Loading collections from database...",
+                collections,
+                file=sys.stdout,
+                desc="Loading collections from database...",
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
+            json_schema = self.db.get_collection(collection).options()["validator"][
+                "$jsonSchema"
+            ]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -138,7 +150,9 @@ class FHIRStore:
             raise NotFoundError
         return res
 
-    def update(self, resource_type, instance_id, resource, bypass_document_validation=False):
+    def update(
+        self, resource_type, instance_id, resource, bypass_document_validation=False
+    ):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -157,7 +171,9 @@ class FHIRStore:
 
         try:
             update_result = self.db[resource_type].replace_one(
-                {"id": instance_id}, resource, bypass_document_validation=bypass_document_validation
+                {"id": instance_id},
+                resource,
+                bypass_document_validation=bypass_document_validation,
             )
             if update_result.matched_count == 0:
                 raise NotFoundError
@@ -165,7 +181,9 @@ class FHIRStore:
         except OperationFailure:
             self.validate(resource)
 
-    def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
+    def patch(
+        self, resource_type, instance_id, patch, bypass_document_validation=False
+    ):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -301,7 +319,6 @@ class FHIRStore:
         if sort:
             query["sort"] = sort
 
-
         if elements:
             query["_source"] = elements
 
@@ -314,7 +331,6 @@ class FHIRStore:
                 {"resource": h["_source"], "search": {"mode": "match"}}
                 for h in hits["hits"]["hits"]
             ],
-
             "total": hits["hits"]["total"]["value"],
         }
 
@@ -322,22 +338,29 @@ class FHIRStore:
             bundle["tag"] = {"code": "SUBSETTED"}
 
         if include:
-            #For each result instance
+            # For each result instance
             for item in bundle["items"]:
-                #For each attribute to include
+                # For each attribute to include
                 for attribute in include:
-                    # split the reference attribute "Practioner/123" into a 
+                    # split the reference attribute "Practioner/123" into a
                     # resource "Practioner" and an id "123"
                     included_resource, included_id = re.split(
-                        "\/", item[attribute]["reference"], maxsplit=1
+                        "\/", item["resource"][attribute]["reference"], maxsplit=1
                     )
                     # search the db for the specific resource to include
                     included_hits = self.es.search(
-                        body={"simple_query_string": {"query": included_id, "fields": "id",}},
+                        body={
+                            "simple_query_string": {
+                                "query": included_id,
+                                "fields": "id",
+                            }
+                        },
                         index=f"fhirstore.{included_resource.lower()}",
                     )
             [
-                bundle["items"].append({"resource": h["_source"], "search": {"mode": "include"}})
+                bundle["items"].append(
+                    {"resource": h["_source"], "search": {"mode": "include"}}
+                )
                 for h in included_hits["hits"]["hits"]
             ]
 
