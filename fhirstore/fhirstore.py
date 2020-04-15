@@ -58,13 +58,9 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(
-                resources, file=sys.stdout, desc="Bootstrapping collections..."
-            )
+            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
         for resource_name, schema in resources:
-            self.db.create_collection(
-                resource_name, **{"validator": {"$jsonSchema": schema}}
-            )
+            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
             # Add unique constraint on id
             self.db[resource_name].create_index("id", unique=True)
             # Add unique constraint on (identifier.system, identifier.value)
@@ -89,15 +85,11 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections,
-                file=sys.stdout,
-                desc="Loading collections from database...",
+                collections, file=sys.stdout, desc="Loading collections from database...",
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"][
-                "$jsonSchema"
-            ]
+            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -150,9 +142,7 @@ class FHIRStore:
             raise NotFoundError
         return res
 
-    def update(
-        self, resource_type, instance_id, resource, bypass_document_validation=False
-    ):
+    def update(self, resource_type, instance_id, resource, bypass_document_validation=False):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -181,9 +171,7 @@ class FHIRStore:
         except OperationFailure:
             self.validate(resource)
 
-    def patch(
-        self, resource_type, instance_id, patch, bypass_document_validation=False
-    ):
+    def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -345,7 +333,7 @@ class FHIRStore:
                 for attribute in include:
                     # split the reference attribute "Practioner/123" into a
                     # resource "Practioner" and an id "123"
-                    try: 
+                    try:
                         included_resource, included_id = re.split(
                             "\/", item["resource"][attribute]["reference"], maxsplit=1
                         )
@@ -360,10 +348,12 @@ class FHIRStore:
                             },
                             index=f"fhirstore.{included_resource.lower()}",
                         )
-                    except KeyError as e: 
+                    except KeyError as e:
                         logging.warning(f"Attribute: {e} is empty")
                     except elasticsearch.exceptions.NotFoundError as e:
-                        logging.warning(f"{e.info['error']['index']} is not indexed in the database yet.")
+                        logging.warning(
+                            f"{e.info['error']['index']} is not indexed in the database yet."
+                        )
                     # search the db for the specific resource to include
 
             if "hits" in included_hits:
