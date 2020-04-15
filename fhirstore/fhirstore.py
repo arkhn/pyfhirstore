@@ -7,7 +7,7 @@ from pymongo import MongoClient, ReturnDocument, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 from jsonschema import validate
-from elasticsearch import Elasticsearch
+import elasticsearch
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
@@ -34,7 +34,7 @@ class FHIRStore:
     def __init__(
         self,
         client: MongoClient,
-        client_es: Elasticsearch,
+        client_es: elasticsearch.Elasticsearch,
         db_name: str,
         resources: dict = {},
     ):
@@ -283,9 +283,9 @@ class FHIRStore:
         resource_type,
         params,
         result_size=100,
-        sort=None,
-        offset=0,
         elements=None,
+        offset=0,
+        sort=None,
         include=None,
     ):
         """
@@ -338,31 +338,41 @@ class FHIRStore:
             bundle["tag"] = {"code": "SUBSETTED"}
 
         if include:
+            included_hits = {}
             # For each result instance
             for item in bundle["items"]:
                 # For each attribute to include
                 for attribute in include:
                     # split the reference attribute "Practioner/123" into a
                     # resource "Practioner" and an id "123"
-                    included_resource, included_id = re.split(
-                        "\/", item["resource"][attribute]["reference"], maxsplit=1
-                    )
+                    try: 
+                        included_resource, included_id = re.split(
+                            "\/", item["resource"][attribute]["reference"], maxsplit=1
+                        )
+                        included_hits = self.es.search(
+                            body={
+                                "query": {
+                                    "simple_query_string": {
+                                        "query": f"{included_id}",
+                                        "fields": ["id"],
+                                    }
+                                }
+                            },
+                            index=f"fhirstore.{included_resource.lower()}",
+                        )
+                    except KeyError as e: 
+                        logging.warning(f"Attribute: {e} is empty")
+                    except elasticsearch.exceptions.NotFoundError as e:
+                        logging.warning(f"{e.info['error']['index']} is not indexed in the database yet.")
                     # search the db for the specific resource to include
-                    included_hits = self.es.search(
-                        body={
-                            "simple_query_string": {
-                                "query": included_id,
-                                "fields": "id",
-                            }
-                        },
-                        index=f"fhirstore.{included_resource.lower()}",
+
+            if "hits" in included_hits:
+                [
+                    bundle["items"].append(
+                        {"resource": h["_source"], "search": {"mode": "include"}}
                     )
-            [
-                bundle["items"].append(
-                    {"resource": h["_source"], "search": {"mode": "include"}}
-                )
-                for h in included_hits["hits"]["hits"]
-            ]
+                    for h in included_hits["hits"]["hits"]
+                ]
 
         return bundle
 
