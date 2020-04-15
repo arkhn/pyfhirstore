@@ -340,10 +340,7 @@ class FHIRStore:
                         included_hits = self.es.search(
                             body={
                                 "query": {
-                                    "simple_query_string": {
-                                        "query": f"{included_id}",
-                                        "fields": ["id"],
-                                    }
+                                    "simple_query_string": {"query": included_id, "fields": ["id"],}
                                 }
                             },
                             index=f"fhirstore.{included_resource.lower()}",
@@ -357,13 +354,10 @@ class FHIRStore:
                     # search the db for the specific resource to include
 
             if "hits" in included_hits:
-                [
+                for h in included_hits["hits"]["hits"]:
                     bundle["items"].append(
                         {"resource": h["_source"], "search": {"mode": "include"}}
                     )
-                    for h in included_hits["hits"]["hits"]
-                ]
-
         return bundle
 
     def count(self, resource_type, params):
