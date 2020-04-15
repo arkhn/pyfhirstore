@@ -334,9 +334,9 @@ class FHIRStore:
                     # split the reference attribute "Practioner/123" into a
                     # resource "Practioner" and an id "123"
                     try:
-                        included_resource, included_id = re.split(
-                            "\/", item["resource"][attribute]["reference"], maxsplit=1
-                        )
+                        included_resource, included_id = item["resource"][attribute][
+                            "reference"
+                        ].split(sep="/", maxsplit=1)
                         included_hits = self.es.search(
                             body={
                                 "query": {
