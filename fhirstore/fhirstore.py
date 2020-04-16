@@ -7,7 +7,7 @@ from pymongo import MongoClient, ReturnDocument, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 from jsonschema import validate
-from elasticsearch import Elasticsearch
+import elasticsearch
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
@@ -32,7 +32,11 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self, client: MongoClient, client_es: Elasticsearch, db_name: str, resources: dict = {},
+        self,
+        client: MongoClient,
+        client_es: elasticsearch.Elasticsearch,
+        db_name: str,
+        resources: dict = {},
     ):
         self.es = client_es
         self.db = client[db_name]
@@ -157,7 +161,9 @@ class FHIRStore:
 
         try:
             update_result = self.db[resource_type].replace_one(
-                {"id": instance_id}, resource, bypass_document_validation=bypass_document_validation
+                {"id": instance_id},
+                resource,
+                bypass_document_validation=bypass_document_validation,
             )
             if update_result.matched_count == 0:
                 raise NotFoundError
@@ -265,9 +271,9 @@ class FHIRStore:
         resource_type,
         params,
         result_size=100,
-        sort=None,
-        offset=0,
         elements=None,
+        offset=0,
+        sort=None,
         include=None,
     ):
         """
@@ -301,7 +307,6 @@ class FHIRStore:
         if sort:
             query["sort"] = sort
 
-
         if elements:
             query["_source"] = elements
 
@@ -314,7 +319,6 @@ class FHIRStore:
                 {"resource": h["_source"], "search": {"mode": "match"}}
                 for h in hits["hits"]["hits"]
             ],
-
             "total": hits["hits"]["total"]["value"],
         }
 
@@ -322,25 +326,38 @@ class FHIRStore:
             bundle["tag"] = {"code": "SUBSETTED"}
 
         if include:
-            #For each result instance
+            included_hits = {}
+            # For each result instance
             for item in bundle["items"]:
-                #For each attribute to include
+                # For each attribute to include
                 for attribute in include:
-                    # split the reference attribute "Practioner/123" into a 
+                    # split the reference attribute "Practioner/123" into a
                     # resource "Practioner" and an id "123"
-                    included_resource, included_id = re.split(
-                        "\/", item[attribute]["reference"], maxsplit=1
-                    )
+                    try:
+                        included_resource, included_id = item["resource"][attribute][
+                            "reference"
+                        ].split(sep="/", maxsplit=1)
+                        included_hits = self.es.search(
+                            body={
+                                "query": {
+                                    "simple_query_string": {"query": included_id, "fields": ["id"]}
+                                }
+                            },
+                            index=f"fhirstore.{included_resource.lower()}",
+                        )
+                    except KeyError as e:
+                        logging.warning(f"Attribute: {e} is empty")
+                    except elasticsearch.exceptions.NotFoundError as e:
+                        logging.warning(
+                            f"{e.info['error']['index']} is not indexed in the database yet."
+                        )
                     # search the db for the specific resource to include
-                    included_hits = self.es.search(
-                        body={"simple_query_string": {"query": included_id, "fields": "id",}},
-                        index=f"fhirstore.{included_resource.lower()}",
-                    )
-            [
-                bundle["items"].append({"resource": h["_source"], "search": {"mode": "include"}})
-                for h in included_hits["hits"]["hits"]
-            ]
 
+            if "hits" in included_hits:
+                for h in included_hits["hits"]["hits"]:
+                    bundle["items"].append(
+                        {"resource": h["_source"], "search": {"mode": "include"}}
+                    )
         return bundle
 
     def count(self, resource_type, params):
