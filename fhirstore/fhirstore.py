@@ -315,7 +315,7 @@ class FHIRStore:
         hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
         bundle = {
             "resource_type": "Bundle",
-            "items": [
+            "entry": [
                 {"resource": h["_source"], "search": {"mode": "match"}}
                 for h in hits["hits"]["hits"]
             ],
@@ -328,7 +328,7 @@ class FHIRStore:
         if include:
             included_hits = {}
             # For each result instance
-            for item in bundle["items"]:
+            for item in bundle["entry"]:
                 # For each attribute to include
                 for attribute in include:
                     # split the reference attribute "Practioner/123" into a
@@ -355,7 +355,7 @@ class FHIRStore:
 
             if "hits" in included_hits:
                 for h in included_hits["hits"]["hits"]:
-                    bundle["items"].append(
+                    bundle["entry"].append(
                         {"resource": h["_source"], "search": {"mode": "include"}}
                     )
         return bundle
