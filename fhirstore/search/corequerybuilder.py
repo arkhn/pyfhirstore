@@ -5,22 +5,9 @@ import json
 from collections import defaultdict
 from collections.abc import Mapping
 
-
 from elasticsearch import Elasticsearch
 
 number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
-
-
-def validate_parameters(params):
-    """Validates that parameters is in dictionary form
-    """
-    assert isinstance(params, Mapping), "parameters must be a dictionary"
-
-
-def validate_sub_parameters(sub_param):
-    """Validates that sub-parameters have length 1
-    """
-    assert len(sub_param) == 1, "sub-parameters must be of length 1"
 
 
 def build_element_query(key, value):
@@ -34,7 +21,6 @@ def build_element_query(key, value):
     eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
     special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
     pipe_suffix = re.search(r"(.*)\|(.*)", value)
-
 
     string_modif = re.search(
         r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
@@ -65,10 +51,7 @@ def build_element_query(key, value):
             element_query["simple_query_string"]["fields"] = [string_field]
         elif string_modifier == "identifier":
             element_query["simple_query_string"]["query"] = f"{value}"
-            element_query["simple_query_string"]["fields"] = [
-                f"{string_field}.identifier.value"
-            ]
-
+            element_query["simple_query_string"]["fields"] = [f"{string_field}.identifier.value"]
 
     elif numeric_prefix:
         element_query["range"][key] = {
@@ -79,9 +62,7 @@ def build_element_query(key, value):
 
     elif special_prefix:
         if special_prefix.group(1) == "ne":
-            element_query["simple_query_string"][
-                "query"
-            ] = f"-{special_prefix.group(2)}"
+            element_query["simple_query_string"]["query"] = f"-{special_prefix.group(2)}"
             element_query["simple_query_string"]["fields"] = [key]
 
     elif pipe_suffix:
@@ -99,45 +80,63 @@ def build_element_query(key, value):
     return element_query
 
 
-def build_simple_query(sub_param):
-    """Translates a dictionary of length 1 to
-    a simple elasticsearch query
-    """
-    validate_parameters(sub_param)
-    validate_sub_parameters(sub_param)
-    sub_query = {}
-    if sub_param.get("multiple"):
-        multiple_key = list(sub_param["multiple"])[0]
-        multiple_values = sub_param["multiple"][multiple_key]
-        content = [{"match": {multiple_key: element}} for element in multiple_values]
-        sub_query = {"bool": {"should": content}}
-    else:
-        key = list(sub_param)[0]
-        values = sub_param[key]
-        if len(values) == 1:
-            sub_query = build_element_query(key, values[0])
+# This class transforms a dictionary of fields, and values into a dictionary
+# which can be the body of an elasticsearch query
+
+
+class CoreQueryBuilder:
+    def __init__(self, core_args):
+        self.args = core_args
+        self.query = {}
+
+    def validate_parameters(self):
+        """Validates that parameters is in dictionary form
+        """
+        assert isinstance(self.args, Mapping), "parameters must be a dictionary"
+
+    def validate_sub_parameters(self):
+        """Validates that sub-parameters have length 1
+        """
+        assert all(
+            len(self.args[key]) == 1 for key in self.args
+        ), "sub-parameters must be of length 1"
+
+    def build_simple_query(self, dict_args):
+        """Translates a dictionary of length 1 to
+        a simple elasticsearch query
+        """
+        self.validate_parameters()
+        self.validate_sub_parameters()
+
+        if dict_args.get("multiple"):
+            multiple_key = list(dict_args["multiple"])[0]
+            multiple_values = dict_args["multiple"][multiple_key]
+            content = [{"match": {multiple_key: element}} for element in multiple_values]
+            sub_query = {"bool": {"should": content}}
         else:
-            content = [build_element_query(key, element) for element in values]
-            sub_query = {"bool": {"must": content}}
-    return sub_query
+            key = list(dict_args)[0]
+            values = dict_args.get(key)
+            if len(values) == 1:
+                sub_query = build_element_query(key, values[0])
+            else:
+                content = [build_element_query(key, element) for element in values]
+                sub_query = {"bool": {"must": content}}
+        return sub_query
 
+    def build_core_query(self):
+        """Translates a full JSON body to
+        the core of an elasticsearch query
+        """
+        self.validate_parameters
 
-def build_core_query(params):
-    """Translates a full JSON body to
-    the core of an elasticsearch query
-    """
-    validate_parameters(params)
-
-    core_query = defaultdict(lambda: defaultdict(dict))
-    if len(params) == 0:
-        core_query = {"match_all": {}}
-    elif len(params) == 1:
-        core_query = build_simple_query(params)
-    elif len(params) > 1:
-        inter_query = [
-            build_simple_query({sub_key: sub_value})
-            for sub_key, sub_value in params.items()
-        ]
-        core_query = {"bool": {"must": inter_query}}
-
-    return core_query
+        if self.args == {}:
+            self.query = {"match_all": {}}
+        elif len(self.args) == 1:
+            self.query = self.build_simple_query(self.args)
+        elif len(self.args) > 1:
+            inter_query = [
+                self.build_simple_query({sub_key: self.args[sub_key]})
+                for sub_key in self.args
+            ]
+            self.query = {"bool": {"must": inter_query}}
+        return self.query

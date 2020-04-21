@@ -1,17 +1,19 @@
 import sys
 import re
 import logging
+import elasticsearch
 
 from collections import defaultdict
 from pymongo import MongoClient, ReturnDocument, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 from jsonschema import validate
-from elasticsearch import Elasticsearch
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
-from fhirstore.search.search_methods import build_core_query
+from fhirstore.search.url_parser import URL_Parser
+from fhirstore.search.formatter import Formatter
+from fhirstore.search.corequerybuilder import CoreQueryBuilder
 
 
 class NotFoundError(Exception):
@@ -32,7 +34,7 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self, client: MongoClient, client_es: Elasticsearch, db_name: str, resources: dict = {},
+        self, client: MongoClient, client_es: elasticsearch.Elasticsearch, db_name: str, resources: dict = {},
     ):
         self.es = client_es
         self.db = client[db_name]
@@ -260,16 +262,7 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(
-        self,
-        resource_type,
-        params,
-        result_size=100,
-        sort=None,
-        offset=0,
-        elements=None,
-        include=None,
-    ):
+    def search(self, args, resource):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -288,80 +281,84 @@ class FHIRStore:
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
-        self.validate_resource_type(resource_type)
+        self.validate_resource_type(resource)
 
-        core_query = build_core_query(params)
-        query = {
-            "min_score": 0.01,
-            "from": offset,
-            "size": result_size,
-            "query": core_query,
-        }
+        # create a Parser instance and process the arguments
+        parsed_args = URL_Parser(args, resource)
+        parsed_args.process_params()
 
-        if sort:
-            query["sort"] = sort
+        # Create an instance of querybuilder and build core query
+        core_query = CoreQueryBuilder(parsed_args.core_args)
+        core_query.build_core_query()
+        
+        # Create an instance for the formatter and initial bundle
+        formatter = Formatter()
+        #TODO : find a way to avoid double parsing
+        formatter.initiate_bundle(args, resource)
 
+        # either do a count
+        if parsed_args.is_summary_count == True :
+            # Add new count to total results
+            hits = self.es.count(body={"query": core_query.query}, index=f"fhirstore.{parsed_args.resource.lower()}")
+            formatter.fill_bundle(hits)
 
-        if elements:
-            query["_source"] = elements
+        # or do a search
+        else :
+            query = {
+                "min_score": 0.01,
+                "from": parsed_args.offset,
+                "size": parsed_args.result_size,
+                "query": core_query.query,
+            }
 
-        # .lower() is used to fix the fact that monstache changes resourceTypes to
-        # all lower case
-        hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
-        bundle = {
-            "resource_type": "Bundle",
-            "items": [
-                {"resource": h["_source"], "search": {"mode": "match"}}
-                for h in hits["hits"]["hits"]
-            ],
+            if parsed_args.sort:
+                query["sort"] = parsed_args.sort
 
-            "total": hits["hits"]["total"]["value"],
-        }
-
-        if elements:
-            bundle["tag"] = {"code": "SUBSETTED"}
-
-        if include:
-            #For each result instance
-            for item in bundle["items"]:
-                #For each attribute to include
-                for attribute in include:
-                    # split the reference attribute "Practioner/123" into a 
+            if parsed_args.elements:
+                query["_source"] = parsed_args.elements
+            
+            print(query)
+            # .lower() is used to fix the fact that monstache changes resourceTypes to
+            # all lower case
+            hits = self.es.search(body=query, index=f"fhirstore.{parsed_args.resource.lower()}")
+            
+            # add results to the bundle if they exist
+            formatter.fill_bundle(hits)
+        
+        # TODO: Add case error when is_summary_count and include
+        if parsed_args.include and parsed_args.is_summary_count == False :
+            included_hits = {}
+            # For each result instance
+            for item in formatter.bundle["entry"]:
+                # only go over items that are not the result of an inclusion
+                if item["search"]["mode"] == "include":
+                    continue
+                # For each attribute to include
+                for attribute in parsed_args.include:
+                    # split the reference attribute "Practioner/123" into a
                     # resource "Practioner" and an id "123"
-                    print(item["resource"][attribute]["reference"])
-                    included_resource, included_id = re.split(
-                        "\/", item["resource"][attribute]["reference"], maxsplit=1
-                    )
-                    # Handle error here 
-                    
-                    # search the db for the specific resource to include
-                    included_hits = self.es.search(
-                        body={"simple_query_string": {"query": included_id, "fields": "id",}},
-                        index=f"fhirstore.{included_resource.lower()}",
-                    )
-            [
-                bundle["items"].append({"resource": h["_source"], "search": {"mode": "include"}})
-                for h in included_hits["hits"]["hits"]
-            ]
+                    try:
+                        included_resource, included_id = item["resource"][attribute][
+                            "reference"
+                        ].split(sep="/", maxsplit=1)
+                        included_hits = self.es.search(
+                            body={
+                                "query": {
+                                    "simple_query_string": {"query": included_id, "fields": ["id"]}
+                                }
+                            },
+                            index=f"fhirstore.{included_resource.lower()}",
+                        )
+                    except KeyError as e:
+                        logging.warning(f"Attribute: {e} is empty")
+                    except elasticsearch.exceptions.NotFoundError as e:
+                        logging.warning(
+                            f"{e.info['error']['index']} is not indexed in the database yet."
+                        )
 
-        return bundle
-
-    def count(self, resource_type, params):
-        """Counts how many results match this query
-        """
-        self.validate_resource_type(resource_type)
-
-        core_query = build_core_query(params)
-        query = {"query": core_query}
-
-        # .lower() is used to fix the fact that monstache changes resourceTypes to
-        # all lower case
-        hits = self.es.count(body=query, index=f"fhirstore.{resource_type.lower()}")
-        return {
-            "resource_type": "Bundle",
-            "tag": {"code": "SUBSETTED"},
-            "total": hits["count"],
-        }
+            formatter.add_included_bundle(included_hits)
+            
+        return formatter.bundle
 
     def upload_bundle(self, bundle):
         """

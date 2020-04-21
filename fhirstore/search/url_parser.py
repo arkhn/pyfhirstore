@@ -1,53 +1,63 @@
 from collections import defaultdict
-from errors.operation_outcome import OperationOutcome
-import elasticsearch
 import re
-from preprocess import parse_params
+
+# Format the url args to a dict
+def url_to_dict(url_args):
+    search_args = {key: url_args.getlist(key) for key in url_args.keys()}
+    return search_args
 
 
-class Parser:
-    def __init__(self,url_args):
+# Parse commas in a (key,value)
+def parse_comma(key, value):
+    search_args = {}
+    has_comma = "," in value
+    if has_comma:
+        search_args["multiple"] = {key: value.split(",")}
+    else:
+        search_args[key] = [value]
+    return search_args
+
+
+# Process all the dict for possible commas
+def process_params(url_args):
+    search_args = url_to_dict(url_args)
+    processed_params = defaultdict(list)
+
+    if search_args == {}:
+        processed_params = {}
+
+    for key, value in search_args.items():
+        if len(value) == 1:
+            parsed_dict = parse_comma(key, value[0])
+            processed_params.update(parsed_dict)
+        else:
+            for element in value:
+                parsed_dict = parse_comma(key, element)
+                if parsed_dict.keys() == "multiple":
+                    processed_params[parsed_dict.keys()] = parsed_dict.values()
+                else:
+                    processed_params[parsed_dict.keys()].append(parsed_dict.values()[0])
+
+    return processed_params
+
+
+class URL_Parser:
+    def __init__(self, url_args: dict, resource):
+        # core args
+        self.resource = resource
         self.processed_params = process_params(url_args)
-        self.query_params = {}
-        self.result_size = 100
-        self.elements = None
-        self.is_summary_count = False
-        self.offset = 0
+        self.core_args = {}
         self.sort = None
+
+        # formatting args
+        self.elements = None
         self.include = False
 
-
-    # Parse commas in a (key,value)
-    @staticmethod
-    def parse_comma(key, value):
-        search_args = {}
-        has_comma = "," in value
-        if has_comma:
-            search_args["multiple"] = {key: value.split(",")}
-        else:
-            search_args[key] = [value]
-        return search_args
-    
-    # Process all the dict for possible commas
-    @staticmethod
-    def process_params(url_args):
-        processed_params = defaultdict(list)
-        
-        if url_args == {}:
-            processed_params = {}
-
-        for key, value in url_args.items():
-            if len(value) == 1:
-                element_key, parsed_element = parse_comma(key, value[0])
-                processed_params[element_key] = parsed_element
-            else:
-                for element in value:
-                    element_key, parsed_element = parse_comma(key, element)
-                    if element_key == "multiple":
-                        processed_params[element_key] = parsed_element
-                    else:
-                        processed_params[element_key].append(parsed_element[0])
-        return processed_params
+        # meta args
+        self.summary = None
+        self.is_summary_count = False
+        self.offset = 0
+        self.result_size = 100
 
     def sort_params(self):
         has_sort = None
@@ -75,9 +85,11 @@ class Parser:
 
     def include_params(self):
         if "_include" in self.processed_params:
-            self.include = re.search(r"(.*):(.*)", self.processed_params["_include"][0]).group(2)
+            self.include = [re.search(r"(.*):(.*)", self.processed_params["_include"][0]).group(2)]
 
-        elif "multiple" in self.processed_params and "_include" in self.processed_params["multiple"]:
+        elif (
+            "multiple" in self.processed_params and "_include" in self.processed_params["multiple"]
+        ):
             attributes = self.processed_params["multiple"].get("_include", None)
             self.include = [re.search(r"(.*):(.*)", elem).group(2) for elem in attributes]
 
@@ -87,6 +99,7 @@ class Parser:
             self.processed_params["multiple"].pop("_element", None)
             self.processed_params["multiple"].pop("_sort", None)
             self.processed_params["multiple"].pop("_include", None)
+            self.processed_params["multiple"].pop("_type", None)
 
         if self.processed_params.get("multiple") == {}:
             self.processed_params = {}
@@ -95,18 +108,23 @@ class Parser:
         self.processed_params.pop("_element", None)
         self.processed_params.pop("_sort", None)
         self.processed_params.pop("_include", None)
-        
+        self.processed_params.pop("_count", None)
+
+
         # Probably not the best way to proceed
-        self.query_params = self.processed_params
+        self.core_args = self.processed_params
 
     def process_params(self):
         parsed_params = self.processed_params
         # TODO: handle offset
         self.sort_params()
         self.include_params()
-        has_result_size = parsed_params.pop("_count", None)
-        self.result_size = int(has_result_size[0]) if has_result_size
-        self.is_summary_count = "_summary" in parsed_params and parsed_params["_summary"][0] == "count"
+        has_result_size = parsed_params.get("_count", None)
+        self.result_size = int(has_result_size[0]) if has_result_size else 100
+        self.summary = "_summary" in parsed_params
+        self.is_summary_count = (
+            "_summary" in parsed_params and parsed_params["_summary"][0] == "count"
+        )
 
         if "_summary" in parsed_params and parsed_params["_summary"][0] == "text":
             self.elements = ["text", "id", "meta"]
