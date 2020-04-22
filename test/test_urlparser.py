@@ -363,7 +363,7 @@ def test_sort_score_asc():
 def test_sort_params():
     url_parser = URL_Parser(ImmutableMultiDict([("_sort", "-birthDate,active")]), "Patient")
     url_parser.sort_params()
-    assert url_parser.sort == [{'birthDate': {'order': 'desc'}}, 'active']
+    assert url_parser.sort == [{"birthDate": {"order": "desc"}}, "active"]
 
 
 def test_sort_params_score():

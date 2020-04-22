@@ -155,7 +155,8 @@ def test_search_and_or(store: FHIRStore):
     """
     result = store.search(
         "Patient",
-        ImmutableMultiDict([("name.family","Levin,Chalmers"),("identifier.value","12345")]))
+        ImmutableMultiDict([("name.family", "Levin,Chalmers"), ("identifier.value", "12345")]),
+    )
     assert len(result["entry"]) == 2
     assert all(
         element["resource"]["identifier"][0]["value"] != "654321" for element in result["entry"]
@@ -236,18 +237,20 @@ def test_search_identifier(store: FHIRStore):
 
 
 def test_count_all(store: FHIRStore):
-    result = store.search("Patient", ImmutableMultiDict([("_summary","count")]))
+    result = store.search("Patient", ImmutableMultiDict([("_summary", "count")]))
     assert result["total"] == 3
     assert result["tag"]["code"] == "SUBSETTED"
 
 
 def test_count_medicationrequest(store: FHIRStore):
-    result = store.search("MedicationRequest", ImmutableMultiDict([("_summary","count")]))
+    result = store.search("MedicationRequest", ImmutableMultiDict([("_summary", "count")]))
     assert result["total"] == 1
 
 
 def test_count_some(store: FHIRStore):
-    result = store.search("Patient", ImmutableMultiDict([("_summary","count"),("identifier.value","ne12345")]))
+    result = store.search(
+        "Patient", ImmutableMultiDict([("_summary", "count"), ("identifier.value", "ne12345")])
+    )
     assert result["total"] == 1
     assert result["tag"]["code"] == "SUBSETTED"
 
@@ -332,7 +335,9 @@ def test_search_summary_text(store: FHIRStore):
 
 def test_handle_pipe(store: FHIRStore):
     result = store.search(
-        "MedicationRequest", ImmutableMultiDict([("contained.code.coding","http://snomed.info/sct|324252006")]))
+        "MedicationRequest",
+        ImmutableMultiDict([("contained.code.coding", "http://snomed.info/sct|324252006")]),
+    )
     assert result["entry"][0]["resource"]["id"] == "medrx0302"
     assert (
         result["entry"][0]["resource"]["contained"][0]["code"]["coding"][0]["system"]
@@ -351,7 +356,7 @@ def test_sort(store: FHIRStore):
 
 
 def test_sort_desc(store: FHIRStore):
-    result = store.search("Patient", ImmutableMultiDict([('_sort', '-birthDate')]))
+    result = store.search("Patient", ImmutableMultiDict([("_sort", "-birthDate")]))
     assert (
         result["entry"][0]["resource"]["birthDate"] >= result["entry"][1]["resource"]["birthDate"]
     )

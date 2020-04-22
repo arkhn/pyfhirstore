@@ -306,7 +306,8 @@ class FHIRStore:
         if parsed_args.is_summary_count == True:
             # Add new count to total results
             hits = self.es.count(
-                body={"query": core_query.query}, index=f"fhirstore.{parsed_args.resource_type.lower()}",
+                body={"query": core_query.query},
+                index=f"fhirstore.{parsed_args.resource_type.lower()}",
             )
             formatter.fill_bundle(hits)
         # or do a search
@@ -326,7 +327,9 @@ class FHIRStore:
             print(query)
             # .lower() is used to fix the fact that monstache changes resourceTypes to
             # all lower case
-            hits = self.es.search(body=query, index=f"fhirstore.{parsed_args.resource_type.lower()}")
+            hits = self.es.search(
+                body=query, index=f"fhirstore.{parsed_args.resource_type.lower()}"
+            )
 
             # add results to the bundle if they exist
             formatter.fill_bundle(hits)

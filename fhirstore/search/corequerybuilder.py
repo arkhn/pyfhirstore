@@ -19,7 +19,7 @@ def build_element_query(key, value):
     if isinstance(value, int) or isinstance(value, float):
         element_query["match"][key] = value
 
-    else : 
+    else:
         numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
         eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
         special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
@@ -54,7 +54,9 @@ def build_element_query(key, value):
                 element_query["simple_query_string"]["fields"] = [string_field]
             elif string_modifier == "identifier":
                 element_query["simple_query_string"]["query"] = f"{value}"
-                element_query["simple_query_string"]["fields"] = [f"{string_field}.identifier.value"]
+                element_query["simple_query_string"]["fields"] = [
+                    f"{string_field}.identifier.value"
+                ]
 
         elif numeric_prefix:
             element_query["range"][key] = {
@@ -78,7 +80,7 @@ def build_element_query(key, value):
         elif isinstance(value, str):
             element_query["simple_query_string"]["query"] = f"({value})*"
             element_query["simple_query_string"]["fields"] = [key]
-        
+
     return element_query
 
 
@@ -95,7 +97,6 @@ class CoreQueryBuilder:
         """Validates that parameters is in dictionary form
         """
         assert isinstance(self.args, Mapping), "parameters must be a dictionary"
-
 
     def build_simple_query(self, dict_args):
         """Translates a dictionary of length 1 to

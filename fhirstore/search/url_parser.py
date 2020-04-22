@@ -34,9 +34,9 @@ def process_params(url_args):
         else:
             for element in value:
                 parsed_key, parsed_value = parse_comma(key, element)
-                if parsed_key=="multiple":
+                if parsed_key == "multiple":
                     processed_params[parsed_key] = parsed_value
-# /                    processed_params["multiple"][sub_key].append(parsed_dict["multiple"][sub_key])
+                # /                    processed_params["multiple"][sub_key].append(parsed_dict["multiple"][sub_key])
                 else:
                     processed_params[parsed_key].append(parsed_value[0])
     return processed_params
@@ -58,9 +58,8 @@ class URL_Parser:
         self.is_summary_count = False
         self.offset = 0
         self.result_size = 100
-        
-        self.processed_params = process_params(url_args)
 
+        self.processed_params = process_params(url_args)
 
     def sort_params(self):
         has_sort = None
@@ -123,7 +122,7 @@ class URL_Parser:
         self.include_params()
         has_result_size = parsed_params.get("_count", None)
         self.result_size = int(has_result_size[0]) if has_result_size else 100
-        self.summary = "_summary" in parsed_params
+        self.summary = "_summary" in parsed_params and parsed_params["_summary"] != ["false"]
         self.is_summary_count = (
             "_summary" in parsed_params and parsed_params["_summary"][0] == "count"
         )

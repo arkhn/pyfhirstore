@@ -4,3 +4,4 @@ pytest==5.4.1
 twine==3.1.0
 flake8==3.7.9
 black==19.10b0 
+Werkzeug==1.0.1

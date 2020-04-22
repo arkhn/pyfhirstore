@@ -5,7 +5,7 @@ from fhirstore.search.url_parser import URL_Parser
 from fhirstore.search.formatter import Formatter
 from collections.abc import Mapping
 from fhirstore import FHIRStore, NotFoundError
-from werkzeug.datastructures import ImmutableMultiDict
+from Werkzeug.datastructures import ImmutableMultiDict
 
 
 def test_parse_format_args():
@@ -50,14 +50,14 @@ def test_initiate_tag_search_bundle():
     }
 
 
-# def test_initiate_no_tag_search_bundle():
-#     formatter = Formatter()
-#     formatter.initiate_bundle(ImmutableMultiDict([("_summary", "False")]), "Patient")
-#     assert formatter.bundle == {
-#         "resource_type": "Bundle",
-#         "entry": [],
-#         "total": 0,
-#     }
+def test_initiate_no_tag_search_bundle():
+    formatter = Formatter()
+    formatter.initiate_bundle(ImmutableMultiDict([("_summary", "false")]), "Patient")
+    assert formatter.bundle == {
+        "resource_type": "Bundle",
+        "entry": [],
+        "total": 0,
+    }
 
 
 def test_fill_bundle():
