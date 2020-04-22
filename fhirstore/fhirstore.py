@@ -34,7 +34,11 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self, client: MongoClient, client_es: elasticsearch.Elasticsearch, db_name: str, resources: dict = {},
+        self,
+        client: MongoClient,
+        client_es: elasticsearch.Elasticsearch,
+        db_name: str,
+        resources: dict = {},
     ):
         self.es = client_es
         self.db = client[db_name]
@@ -159,7 +163,9 @@ class FHIRStore:
 
         try:
             update_result = self.db[resource_type].replace_one(
-                {"id": instance_id}, resource, bypass_document_validation=bypass_document_validation
+                {"id": instance_id},
+                resource,
+                bypass_document_validation=bypass_document_validation,
             )
             if update_result.matched_count == 0:
                 raise NotFoundError
@@ -262,7 +268,7 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, args, resource):
+    def search(self, resource_type, args):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -281,29 +287,30 @@ class FHIRStore:
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
-        self.validate_resource_type(resource)
+        self.validate_resource_type(resource_type)
 
         # create a Parser instance and process the arguments
-        parsed_args = URL_Parser(args, resource)
+        parsed_args = URL_Parser(args, resource_type)
         parsed_args.process_params()
 
         # Create an instance of querybuilder and build core query
         core_query = CoreQueryBuilder(parsed_args.core_args)
         core_query.build_core_query()
-        
+
         # Create an instance for the formatter and initial bundle
         formatter = Formatter()
-        #TODO : find a way to avoid double parsing
-        formatter.initiate_bundle(args, resource)
+        # TODO : find a way to avoid double parsing
+        formatter.initiate_bundle(args, resource_type)
 
         # either do a count
-        if parsed_args.is_summary_count == True :
+        if parsed_args.is_summary_count == True:
             # Add new count to total results
-            hits = self.es.count(body={"query": core_query.query}, index=f"fhirstore.{parsed_args.resource.lower()}")
+            hits = self.es.count(
+                body={"query": core_query.query}, index=f"fhirstore.{parsed_args.resource_type.lower()}",
+            )
             formatter.fill_bundle(hits)
-
         # or do a search
-        else :
+        else:
             query = {
                 "min_score": 0.01,
                 "from": parsed_args.offset,
@@ -316,17 +323,15 @@ class FHIRStore:
 
             if parsed_args.elements:
                 query["_source"] = parsed_args.elements
-            
             print(query)
             # .lower() is used to fix the fact that monstache changes resourceTypes to
             # all lower case
-            hits = self.es.search(body=query, index=f"fhirstore.{parsed_args.resource.lower()}")
-            
+            hits = self.es.search(body=query, index=f"fhirstore.{parsed_args.resource_type.lower()}")
+
             # add results to the bundle if they exist
             formatter.fill_bundle(hits)
-        
         # TODO: Add case error when is_summary_count and include
-        if parsed_args.include and parsed_args.is_summary_count == False :
+        if parsed_args.include and parsed_args.is_summary_count == False:
             included_hits = {}
             # For each result instance
             for item in formatter.bundle["entry"]:
@@ -344,7 +349,7 @@ class FHIRStore:
                         included_hits = self.es.search(
                             body={
                                 "query": {
-                                    "simple_query_string": {"query": included_id, "fields": ["id"]}
+                                    "simple_query_string": {"query": included_id, "fields": ["id"],}
                                 }
                             },
                             index=f"fhirstore.{included_resource.lower()}",
@@ -357,7 +362,7 @@ class FHIRStore:
                         )
 
             formatter.add_included_bundle(included_hits)
-            
+
         return formatter.bundle
 
     def upload_bundle(self, bundle):

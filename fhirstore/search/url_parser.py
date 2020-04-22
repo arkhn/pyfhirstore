@@ -9,43 +9,43 @@ def url_to_dict(url_args):
 
 # Parse commas in a (key,value)
 def parse_comma(key, value):
-    search_args = {}
     has_comma = "," in value
     if has_comma:
-        search_args["multiple"] = {key: value.split(",")}
+        return "multiple", {key: value.split(",")}
     else:
-        search_args[key] = [value]
-    return search_args
+        return key, [value]
+    #     search_args["multiple"] = {key: value.split(",")}
+    # else:
+    #     search_args[key] = [value]
+    # return element_
 
 
 # Process all the dict for possible commas
 def process_params(url_args):
     search_args = url_to_dict(url_args)
     processed_params = defaultdict(list)
-
     if search_args == {}:
         processed_params = {}
 
     for key, value in search_args.items():
         if len(value) == 1:
-            parsed_dict = parse_comma(key, value[0])
-            processed_params.update(parsed_dict)
+            parsed_key, parsed_value = parse_comma(key, value[0])
+            processed_params.update({parsed_key: parsed_value})
         else:
             for element in value:
-                parsed_dict = parse_comma(key, element)
-                if parsed_dict.keys() == "multiple":
-                    processed_params[parsed_dict.keys()] = parsed_dict.values()
+                parsed_key, parsed_value = parse_comma(key, element)
+                if parsed_key=="multiple":
+                    processed_params[parsed_key] = parsed_value
+# /                    processed_params["multiple"][sub_key].append(parsed_dict["multiple"][sub_key])
                 else:
-                    processed_params[parsed_dict.keys()].append(parsed_dict.values()[0])
-
+                    processed_params[parsed_key].append(parsed_value[0])
     return processed_params
 
 
 class URL_Parser:
-    def __init__(self, url_args: dict, resource):
+    def __init__(self, url_args: dict, resource_type):
         # core args
-        self.resource = resource
-        self.processed_params = process_params(url_args)
+        self.resource_type = resource_type
         self.core_args = {}
         self.sort = None
 
@@ -54,10 +54,13 @@ class URL_Parser:
         self.include = False
 
         # meta args
-        self.summary = None
+        self.summary = False
         self.is_summary_count = False
         self.offset = 0
         self.result_size = 100
+        
+        self.processed_params = process_params(url_args)
+
 
     def sort_params(self):
         has_sort = None
@@ -109,7 +112,6 @@ class URL_Parser:
         self.processed_params.pop("_sort", None)
         self.processed_params.pop("_include", None)
         self.processed_params.pop("_count", None)
-
 
         # Probably not the best way to proceed
         self.core_args = self.processed_params

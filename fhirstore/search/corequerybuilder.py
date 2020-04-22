@@ -14,69 +14,71 @@ def build_element_query(key, value):
     """Translate and parse search parameters (key, value) to an
     elasticSearch element query
     """
-
     element_query = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
-    numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
-    eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
-    special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
-    pipe_suffix = re.search(r"(.*)\|(.*)", value)
-
-    string_modif = re.search(
-        r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
-    )
-    if string_modif:
-        string_modifier = string_modif.group(2)
-        string_field = string_modif.group(1)
-        if string_modifier == "contains":
-            element_query["query_string"]["query"] = f"*{value}*"
-            element_query["query_string"]["default_field"] = string_field
-
-        elif string_modifier == "exact":
-            element_query["query_string"]["query"] = value
-            element_query["query_string"]["fields"] = [string_field]
-
-        elif string_modifier == "not":
-            element_query["bool"]["must_not"]["match"][string_field] = f"{value}"
-
-        elif string_modifier == "not-in":
-            element_query["simple_query_string"]["query"] = f"-{value}"
-            element_query["simple_query_string"]["fields"] = [string_field]
-
-        elif string_modifier == "in":
-            element_query["query_string"]["query"] = f"{value}"
-
-        elif string_modifier == "below":
-            element_query["simple_query_string"]["query"] = f"({value})*"
-            element_query["simple_query_string"]["fields"] = [string_field]
-        elif string_modifier == "identifier":
-            element_query["simple_query_string"]["query"] = f"{value}"
-            element_query["simple_query_string"]["fields"] = [f"{string_field}.identifier.value"]
-
-    elif numeric_prefix:
-        element_query["range"][key] = {
-            number_prefix_matching[numeric_prefix.group(1)]: numeric_prefix.group(2)
-        }
-    elif eq_prefix:
-        element_query["match"][key] = eq_prefix.group(2)
-
-    elif special_prefix:
-        if special_prefix.group(1) == "ne":
-            element_query["simple_query_string"]["query"] = f"-{special_prefix.group(2)}"
-            element_query["simple_query_string"]["fields"] = [key]
-
-    elif pipe_suffix:
-        system, code = re.split(r"\|", value)
-        element_query["bool"]["must"] = [{"match": {f"{key}.system": system}}]
-        element_query["bool"]["must"].append(
-            {"simple_query_string": {"query": code, "fields": [f"{key}.code", f"{key}.value"],}}
-        )
-
-    elif isinstance(value, str):
-        element_query["simple_query_string"]["query"] = f"({value})*"
-        element_query["simple_query_string"]["fields"] = [key]
-    elif isinstance(value, int) or isinstance(value, float):
+    if isinstance(value, int) or isinstance(value, float):
         element_query["match"][key] = value
+
+    else : 
+        numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
+        eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
+        special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
+        pipe_suffix = re.search(r"(.*)\|(.*)", value)
+
+        string_modif = re.search(
+            r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
+        )
+        if string_modif:
+            string_modifier = string_modif.group(2)
+            string_field = string_modif.group(1)
+            if string_modifier == "contains":
+                element_query["query_string"]["query"] = f"*{value}*"
+                element_query["query_string"]["default_field"] = string_field
+
+            elif string_modifier == "exact":
+                element_query["query_string"]["query"] = value
+                element_query["query_string"]["fields"] = [string_field]
+
+            elif string_modifier == "not":
+                element_query["bool"]["must_not"]["match"][string_field] = f"{value}"
+
+            elif string_modifier == "not-in":
+                element_query["simple_query_string"]["query"] = f"-{value}"
+                element_query["simple_query_string"]["fields"] = [string_field]
+
+            elif string_modifier == "in":
+                element_query["query_string"]["query"] = f"{value}"
+
+            elif string_modifier == "below":
+                element_query["simple_query_string"]["query"] = f"({value})*"
+                element_query["simple_query_string"]["fields"] = [string_field]
+            elif string_modifier == "identifier":
+                element_query["simple_query_string"]["query"] = f"{value}"
+                element_query["simple_query_string"]["fields"] = [f"{string_field}.identifier.value"]
+
+        elif numeric_prefix:
+            element_query["range"][key] = {
+                number_prefix_matching[numeric_prefix.group(1)]: numeric_prefix.group(2)
+            }
+        elif eq_prefix:
+            element_query["match"][key] = eq_prefix.group(2)
+
+        elif special_prefix:
+            if special_prefix.group(1) == "ne":
+                element_query["simple_query_string"]["query"] = f"-{special_prefix.group(2)}"
+                element_query["simple_query_string"]["fields"] = [key]
+
+        elif pipe_suffix:
+            system, code = re.split(r"\|", value)
+            element_query["bool"]["must"] = [{"match": {f"{key}.system": system}}]
+            element_query["bool"]["must"].append(
+                {"simple_query_string": {"query": code, "fields": [f"{key}.code", f"{key}.value"],}}
+            )
+
+        elif isinstance(value, str):
+            element_query["simple_query_string"]["query"] = f"({value})*"
+            element_query["simple_query_string"]["fields"] = [key]
+        
     return element_query
 
 
@@ -94,19 +96,12 @@ class CoreQueryBuilder:
         """
         assert isinstance(self.args, Mapping), "parameters must be a dictionary"
 
-    def validate_sub_parameters(self):
-        """Validates that sub-parameters have length 1
-        """
-        assert all(
-            len(self.args[key]) == 1 for key in self.args
-        ), "sub-parameters must be of length 1"
 
     def build_simple_query(self, dict_args):
         """Translates a dictionary of length 1 to
         a simple elasticsearch query
         """
         self.validate_parameters()
-        self.validate_sub_parameters()
 
         if dict_args.get("multiple"):
             multiple_key = list(dict_args["multiple"])[0]
@@ -135,8 +130,7 @@ class CoreQueryBuilder:
             self.query = self.build_simple_query(self.args)
         elif len(self.args) > 1:
             inter_query = [
-                self.build_simple_query({sub_key: self.args[sub_key]})
-                for sub_key in self.args
+                self.build_simple_query({sub_key: self.args[sub_key]}) for sub_key in self.args
             ]
             self.query = {"bool": {"must": inter_query}}
         return self.query
