@@ -5,7 +5,7 @@ from fhirstore.search.url_parser import URL_Parser
 from fhirstore.search.formatter import Formatter
 from collections.abc import Mapping
 from fhirstore import FHIRStore, NotFoundError
-from Werkzeug.datastructures import ImmutableMultiDict
+from werkzeug.datastructures import ImmutableMultiDict
 
 
 def test_parse_format_args():
