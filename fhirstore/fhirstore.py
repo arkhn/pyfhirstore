@@ -11,9 +11,7 @@ from jsonschema import validate
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
-from fhirstore.search.url_parser import URL_Parser
-from fhirstore.search.formatter import Formatter
-from fhirstore.search.corequerybuilder import CoreQueryBuilder
+from fhirstore.search import URL_Parser, Formatter, CoreQueryBuilder
 
 
 class NotFoundError(Exception):
@@ -289,28 +287,17 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        # create a Parser instance and process the arguments
         parsed_args = URL_Parser(args, resource_type)
-        parsed_args.process_params()
-
-        # Create an instance of querybuilder and build core query
         core_query = CoreQueryBuilder(parsed_args.core_args)
-        core_query.build_core_query()
+        formatter = Formatter(parsed_args, resource_type)
 
-        # Create an instance for the formatter and initial bundle
-        formatter = Formatter()
-        # TODO : find a way to avoid double parsing
-        formatter.initiate_bundle(args, resource_type)
-
-        # either do a count
         if parsed_args.is_summary_count == True:
-            # Add new count to total results
             hits = self.es.count(
                 body={"query": core_query.query},
                 index=f"fhirstore.{parsed_args.resource_type.lower()}",
             )
             formatter.fill_bundle(hits)
-        # or do a search
+        
         else:
             query = {
                 "min_score": 0.01,
@@ -324,16 +311,14 @@ class FHIRStore:
 
             if parsed_args.elements:
                 query["_source"] = parsed_args.elements
-            print(query)
             # .lower() is used to fix the fact that monstache changes resourceTypes to
             # all lower case
             hits = self.es.search(
                 body=query, index=f"fhirstore.{parsed_args.resource_type.lower()}"
             )
 
-            # add results to the bundle if they exist
             formatter.fill_bundle(hits)
-        # TODO: Add case error when is_summary_count and include
+
         if parsed_args.include and parsed_args.is_summary_count == False:
             included_hits = {}
             # For each result instance

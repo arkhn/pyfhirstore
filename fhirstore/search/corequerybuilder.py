@@ -28,7 +28,9 @@ def build_element_query(key, value):
         string_modif = re.search(
             r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
         )
-        if string_modif:
+        if key=="_text":
+            element_query["query_string"]["query"] = value
+        elif string_modif:
             string_modifier = string_modif.group(2)
             string_field = string_modif.group(1)
             if string_modifier == "contains":
@@ -92,6 +94,7 @@ class CoreQueryBuilder:
     def __init__(self, core_args):
         self.args = core_args
         self.query = {}
+        self.build_core_query()
 
     def validate_parameters(self):
         """Validates that parameters is in dictionary form

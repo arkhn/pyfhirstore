@@ -4,22 +4,21 @@ import logging
 
 
 class Formatter:
-    def __init__(self):
+    def __init__(self, parsed_args, resource_type):
         self.hits = {}
         self.included_hits = {}
         self.bundle = {}
-
-    def parse_format_arguments(self, url_args, resource_type):
-        parsed_args = URL_Parser(url_args, resource_type)
-        parsed_args.process_params()
+        self.initiate_bundle(parsed_args, resource_type)
+        
+    def parse_format_arguments(self, parsed_args, resource_type):
         self.resource_type = parsed_args.resource_type
         self.elements = parsed_args.elements
         self.include = parsed_args.include
         self.summary = parsed_args.summary
         self.is_summary_count = parsed_args.is_summary_count
-
-    def initiate_bundle(self, url_args, resource_type):
-        self.parse_format_arguments(url_args, resource_type)
+        
+    def initiate_bundle(self, parsed_args, resource_type):
+        self.parse_format_arguments(parsed_args, resource_type)
         if self.is_summary_count:
             self.bundle = {
                 "resource_type": "Bundle",

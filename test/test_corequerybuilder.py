@@ -2,7 +2,7 @@ import pytest
 import json
 from pytest import raises
 
-from fhirstore.search.corequerybuilder import build_element_query, CoreQueryBuilder
+from fhirstore.search import build_element_query, CoreQueryBuilder
 from collections.abc import Mapping
 from fhirstore import FHIRStore, NotFoundError
 
@@ -181,17 +181,9 @@ def test_element_query_output():
 ##
 ##########
 
-
-def test_simple_query_builder_validate():
-    corequerybuilder = CoreQueryBuilder(["name"])
-    with raises(AssertionError, match="parameters must be a dictionary"):
-        corequerybuilder.build_simple_query(corequerybuilder.args)
-
-
 def test_core_query_builder_validate():
-    corequerybuilder = CoreQueryBuilder(["name"])
     with raises(AssertionError, match="parameters must be a dictionary"):
-        corequerybuilder.build_core_query()
+        CoreQueryBuilder(["name"])
 
 
 def test_core_query_builder():

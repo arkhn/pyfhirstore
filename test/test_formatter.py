@@ -1,16 +1,16 @@
 import pytest
 import json
 from pytest import raises
-from fhirstore.search.url_parser import URL_Parser
-from fhirstore.search.formatter import Formatter
+from fhirstore.search import URL_Parser
+from fhirstore.search import Formatter
 from collections.abc import Mapping
 from fhirstore import FHIRStore, NotFoundError
 from werkzeug.datastructures import ImmutableMultiDict
 
 
 def test_parse_format_args():
-    formatter = Formatter()
-    formatter.parse_format_arguments(ImmutableMultiDict([]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     assert formatter.resource_type == "Patient"
     assert formatter.elements is None
     assert formatter.include is False
@@ -20,8 +20,8 @@ def test_parse_format_args():
 
 
 def test_initiate_search_bundle():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     assert formatter.bundle == {
         "resource_type": "Bundle",
         "entry": [],
@@ -30,8 +30,8 @@ def test_initiate_search_bundle():
 
 
 def test_initiate_count_bundle():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([("_summary", "count")]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([("_summary", "count")]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     assert formatter.bundle == {
         "resource_type": "Bundle",
         "tag": {"code": "SUBSETTED"},
@@ -40,8 +40,8 @@ def test_initiate_count_bundle():
 
 
 def test_initiate_tag_search_bundle():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([("_summary", "text")]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([("_summary", "text")]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     assert formatter.bundle == {
         "resource_type": "Bundle",
         "entry": [],
@@ -51,8 +51,8 @@ def test_initiate_tag_search_bundle():
 
 
 def test_initiate_no_tag_search_bundle():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([("_summary", "false")]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([("_summary", "false")]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     assert formatter.bundle == {
         "resource_type": "Bundle",
         "entry": [],
@@ -60,15 +60,9 @@ def test_initiate_no_tag_search_bundle():
     }
 
 
-def test_fill_bundle():
-    formatter = Formatter()
-    formatter.fill_bundle({})
-    assert formatter.bundle == {}
-
-
 def test_fill_bundle_count_empty():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([("_summary", "count")]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([("_summary", "count")]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     formatter.fill_bundle({})
     assert formatter.bundle == {
         "resource_type": "Bundle",
@@ -78,8 +72,8 @@ def test_fill_bundle_count_empty():
 
 
 def test_fill_bundle_search_empty():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     formatter.fill_bundle({})
     assert formatter.bundle == {
         "resource_type": "Bundle",
@@ -89,8 +83,8 @@ def test_fill_bundle_search_empty():
 
 
 def test_fill_bundle_count():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([("_summary", "count")]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([("_summary", "count")]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     formatter.fill_bundle(
         {"count": 1, "_shards": {"total": 1, "successful": 1, "skipped": 0, "failed": 0}}
     )
@@ -102,8 +96,8 @@ def test_fill_bundle_count():
 
 
 def test_fill_bundle_search():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     formatter.fill_bundle(
         {
             "took": 2,
@@ -157,8 +151,8 @@ def test_fill_bundle_search():
 
 
 def test_complete_bundle():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     formatter.fill_bundle(
         {
             "took": 2,
@@ -238,8 +232,8 @@ def test_complete_bundle():
 
 
 def test_complete_bundle_count():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([("_summary", "count")]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([("_summary", "count")]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     formatter.fill_bundle(
         {"count": 1, "_shards": {"total": 1, "successful": 1, "skipped": 0, "failed": 0}}
     )
@@ -255,8 +249,8 @@ def test_complete_bundle_count():
 
 
 def test_add_included_bundle_no_include():
-    formatter = Formatter()
-    formatter.initiate_bundle(ImmutableMultiDict([]), "Patient")
+    parsed_args = URL_Parser(ImmutableMultiDict([]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     formatter.add_included_bundle(
         {
             "took": 2,
@@ -295,10 +289,8 @@ def test_add_included_bundle_no_include():
 
 
 def test_add_included_bundle():
-    formatter = Formatter()
-    formatter.initiate_bundle(
-        ImmutableMultiDict([("_include", "MedicationRequest:subject")]), "Patient"
-    )
+    parsed_args = URL_Parser(ImmutableMultiDict([("_include", "MedicationRequest:subject")]),"Patient")
+    formatter = Formatter(parsed_args, "Patient")
     formatter.add_included_bundle(
         {
             "took": 2,

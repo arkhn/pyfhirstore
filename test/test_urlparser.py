@@ -4,7 +4,7 @@ from pytest import raises
 
 from time import sleep
 from fhirstore import FHIRStore, NotFoundError
-from fhirstore.search.url_parser import URL_Parser, parse_comma, process_params
+from fhirstore.search import URL_Parser, parse_comma, pre_process_params
 from collections.abc import Mapping
 from werkzeug.datastructures import ImmutableMultiDict
 
@@ -85,34 +85,33 @@ def test_parse_comma_multiple():
 
 
 def test_no_params():
-    resp = process_params(ImmutableMultiDict([]))
+    resp = pre_process_params(ImmutableMultiDict([]))
     assert resp == {}
 
 
 def test_one_param_no_comma():
-    resp = process_params(ImmutableMultiDict([("gender", "female")]))
+    resp = pre_process_params(ImmutableMultiDict([("gender", "female")]))
     assert resp == {"gender": ["female"]}
 
 
 def test_one_param_one_comma():
-    resp = process_params(ImmutableMultiDict([("gender", "female,male")]))
+    resp = pre_process_params(ImmutableMultiDict([("gender", "female,male")]))
     assert resp == {"multiple": {"gender": ["female", "male"]}}
 
 
 def test_one_param_two_entry_no_comma():
 
-    resp = process_params(ImmutableMultiDict([("name", "John"), ("name", "Lena")]))
+    resp = pre_process_params(ImmutableMultiDict([("name", "John"), ("name", "Lena")]))
     assert resp == {"name": ["John", "Lena"]}
 
 
 def test_one_param_two_entries_one_comma():
-    resp = process_params(ImmutableMultiDict([("language", "FR"), ("language", "NL,EN")]))
+    resp = pre_process_params(ImmutableMultiDict([("language", "FR"), ("language", "NL,EN")]))
     assert resp == {"language": ["FR"], "multiple": {"language": ["NL", "EN"]}}
 
 
 def test_count_summary():
     url_parser = URL_Parser(ImmutableMultiDict([("_summary", "count")]), "Patient")
-    url_parser.process_params()
     assert url_parser.processed_params == {}
     assert url_parser.resource_type == "Patient"
     assert url_parser.core_args == {}
@@ -127,7 +126,6 @@ def test_count_summary():
 
 def test_text_summary():
     url_parser = URL_Parser(ImmutableMultiDict([("_summary", "text")]), "Patient")
-    url_parser.process_params()
     assert url_parser.processed_params == {}
     assert url_parser.resource_type == "Patient"
     assert url_parser.core_args == {}
@@ -142,7 +140,6 @@ def test_text_summary():
 
 def test_element():
     url_parser = URL_Parser(ImmutableMultiDict([("_element", "birthDate")]), "Patient")
-    url_parser.process_params()
     assert url_parser.processed_params == {}
     assert url_parser.resource_type == "Patient"
     assert url_parser.core_args == {}
@@ -157,7 +154,6 @@ def test_element():
 
 def test_elements():
     url_parser = URL_Parser(ImmutableMultiDict([("_element", "birthDate,gender")]), "Patient")
-    url_parser.process_params()
     assert url_parser.processed_params == {}
     assert url_parser.resource_type == "Patient"
     assert url_parser.core_args == {}
@@ -172,7 +168,6 @@ def test_elements():
 
 def test_result_size():
     url_parser = URL_Parser(ImmutableMultiDict([("_count", "2")]), "Patient")
-    url_parser.process_params()
     assert url_parser.processed_params == {}
     assert url_parser.resource_type == "Patient"
     assert url_parser.core_args == {}
@@ -192,7 +187,6 @@ def test_result_size_elements():
         ),
         "Patient",
     )
-    url_parser.process_params()
     assert url_parser.processed_params == {}
     assert url_parser.resource_type == "Patient"
     assert url_parser.core_args == {}
@@ -218,7 +212,6 @@ def test_mix_parameters():
         ),
         "Patient",
     )
-    url_parser.process_params()
     assert url_parser.processed_params == {
         "language": ["FR"],
         "multiple": {"language": ["EN", "NL"]},
@@ -242,7 +235,6 @@ def test_mix_params_count():
         ImmutableMultiDict([("_summary", "count"), ("language", "FR"), ("language", "EN,NL")]),
         "Patient",
     )
-    url_parser.process_params()
     assert url_parser.processed_params == {
         "language": ["FR"],
         "multiple": {"language": ["EN", "NL"]},
@@ -266,7 +258,6 @@ def test_mix_params_sort():
         ImmutableMultiDict([("language", "FR"), ("language", "EN,NL"), ("_sort", "birthDate")]),
         "Patient",
     )
-    url_parser.process_params()
     assert url_parser.processed_params == {
         "language": ["FR"],
         "multiple": {"language": ["EN", "NL"]},
@@ -295,7 +286,6 @@ def test_mix_params_include():
         ),
         "Patient",
     )
-    url_parser.process_params()
     assert url_parser.processed_params == {
         "language": ["FR"],
         "multiple": {"language": ["EN", "NL"]},
@@ -318,7 +308,6 @@ def test_mix_params_include_multiple():
         ImmutableMultiDict([("_include", "MedicationRequest:subject,MedicationRequest:requester")]),
         "Patient",
     )
-    url_parser.process_params()
     assert url_parser.processed_params == {}
     assert url_parser.core_args == {}
     assert url_parser.sort is None

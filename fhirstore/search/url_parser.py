@@ -21,7 +21,7 @@ def parse_comma(key, value):
 
 
 # Process all the dict for possible commas
-def process_params(url_args):
+def pre_process_params(url_args):
     search_args = url_to_dict(url_args)
     processed_params = defaultdict(list)
     if search_args == {}:
@@ -58,8 +58,8 @@ class URL_Parser:
         self.is_summary_count = False
         self.offset = 0
         self.result_size = 100
-
-        self.processed_params = process_params(url_args)
+        self.processed_params = pre_process_params(url_args)
+        self.process_params()
 
     def sort_params(self):
         has_sort = None
