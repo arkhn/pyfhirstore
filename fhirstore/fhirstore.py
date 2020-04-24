@@ -32,11 +32,11 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self,
-        client: MongoClient,
-        client_es: elasticsearch.Elasticsearch,
-        db_name: str,
-        resources: dict = {},
+            self,
+            client: MongoClient,
+            client_es: elasticsearch.Elasticsearch,
+            db_name: str,
+            resources: dict = {},
     ):
         self.es = client_es
         self.db = client[db_name]
@@ -171,6 +171,35 @@ class FHIRStore:
         except OperationFailure:
             self.validate(resource)
 
+    def upsert(self, resource_type, instance_id, resource, bypass_document_validation=False):
+        """
+        Update a resource given its type, id and a resource. It applies
+        a "replace" operation, therefore the resource will be overriden.
+        It inserts a new document if a matching document does not exist.
+        The structure of the updated resource will  be checked against
+        its json-schema FHIR definition.
+
+        Args:
+            - resource_type: type of the resource (eg: 'Patient')
+            - id: The expected id is the resource 'id', not the
+                  internal database identifier ('_id').
+            - resource: The updated resource.
+
+        Returns: The updated resource.
+        """
+        self.validate_resource_type(resource_type)
+
+        try:
+            update_result = self.db[resource_type].replace_one(
+                {"id": instance_id},
+                resource,
+                bypass_document_validation=bypass_document_validation,
+                upsert=True
+            )
+            return update_result
+        except OperationFailure:
+            self.validate(resource)
+
     def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
         """
         Update a resource given its type, id and a patch. It applies
@@ -267,14 +296,14 @@ class FHIRStore:
         validate(instance=resource, schema=schema)
 
     def search(
-        self,
-        resource_type,
-        params,
-        result_size=100,
-        elements=None,
-        offset=0,
-        sort=None,
-        include=None,
+            self,
+            resource_type,
+            params,
+            result_size=100,
+            elements=None,
+            offset=0,
+            sort=None,
+            include=None,
     ):
         """
         Searchs for params inside a resource.
