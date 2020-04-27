@@ -171,7 +171,7 @@ class FHIRStore:
         except OperationFailure:
             self.validate(resource)
 
-    def upsert(self, resource_type, instance_id, resource, bypass_document_validation=False):
+    def upsert(self, resource_type, identifier_id, resource, bypass_document_validation=False):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -191,7 +191,7 @@ class FHIRStore:
 
         try:
             update_result = self.db[resource_type].replace_one(
-                {"id": instance_id},
+                {"identifier": identifier_id},
                 resource,
                 bypass_document_validation=bypass_document_validation,
                 upsert=True
@@ -231,7 +231,7 @@ class FHIRStore:
             resource = self.read(resource_type, instance_id)
             self.validate({**resource, **patch})
 
-    def delete(self, resource_type, instance_id=None, resource_id=None, source_id=None):
+    def delete(self, resource_type, instance_id=None, resource_id=None, source_id=None, identifier_id=None):
         """
         Deletes a resource given its type and id.
 
@@ -246,6 +246,8 @@ class FHIRStore:
 
         if instance_id:
             res = self.db[resource_type].delete_one({"id": instance_id})
+        elif identifier_id:
+            res = self.db[resource_type].delete_one({"identifier": identifier_id})
         elif resource_id:
             res = self.db[resource_type].delete_many(
                 {
