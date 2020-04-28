@@ -11,7 +11,7 @@ from jsonschema import validate
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
-from fhirstore.search import URL_Parser, Formatter, CoreQueryBuilder
+from fhirstore.search import UrlParser, SearchArguments, Formatter, Bundle, CoreQueryBuilder
 
 
 class NotFoundError(Exception):
@@ -42,6 +42,9 @@ class FHIRStore:
         self.db = client[db_name]
         self.parser = SchemaParser()
         self.resources = resources
+        self.urlparser = UrlParser()
+        self.corequerybuilder = CoreQueryBuilder()
+        self.formatter = Formatter()
 
     def reset(self):
         """
@@ -287,23 +290,24 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        parsed_args = URL_Parser(args, resource_type)
-        core_query = CoreQueryBuilder(parsed_args.core_args)
-        formatter = Formatter(parsed_args, resource_type)
+        raw_args = SearchArguments(args, resource_type)
+
+        parsed_args = self.urlparser.parse_arguments(raw_args)
+        core_query = self.corequerybuilder.build_core_query(parsed_args.core_args)
+        bundle = self.formatter.initiate_bundle(parsed_args, resource_type, Bundle())
 
         if parsed_args.is_summary_count == True:
             hits = self.es.count(
-                body={"query": core_query.query},
-                index=f"fhirstore.{parsed_args.resource_type.lower()}",
+                body={"query": core_query}, index=f"fhirstore.{parsed_args.resource_type.lower()}",
             )
-            formatter.fill_bundle(hits)
-        
+            bundle = self.formatter.fill_bundle(parsed_args, bundle, hits)
+
         else:
             query = {
                 "min_score": 0.01,
                 "from": parsed_args.offset,
                 "size": parsed_args.result_size,
-                "query": core_query.query,
+                "query": core_query,
             }
 
             if parsed_args.sort:
@@ -317,12 +321,12 @@ class FHIRStore:
                 body=query, index=f"fhirstore.{parsed_args.resource_type.lower()}"
             )
 
-            formatter.fill_bundle(hits)
+            bundle = self.formatter.fill_bundle(parsed_args, bundle, hits)
 
         if parsed_args.include and parsed_args.is_summary_count == False:
             included_hits = {}
             # For each result instance
-            for item in formatter.bundle["entry"]:
+            for item in bundle["entry"]:
                 # only go over items that are not the result of an inclusion
                 if item["search"]["mode"] == "include":
                     continue
@@ -349,9 +353,9 @@ class FHIRStore:
                             f"{e.info['error']['index']} is not indexed in the database yet."
                         )
 
-            formatter.add_included_bundle(included_hits)
+            bundle = self.formatter.add_included_bundle(parsed_args, bundle, included_hits)
 
-        return formatter.bundle
+        return bundle
 
     def upload_bundle(self, bundle):
         """

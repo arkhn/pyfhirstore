@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 
 from elasticsearch import Elasticsearch
+from fhirstore.search.urlparser import SearchArguments
 
 number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
 
@@ -28,7 +29,7 @@ def build_element_query(key, value):
         string_modif = re.search(
             r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
         )
-        if key=="_text":
+        if key == "_text":
             element_query["query_string"]["query"] = value
         elif string_modif:
             string_modifier = string_modif.group(2)
@@ -91,21 +92,19 @@ def build_element_query(key, value):
 
 
 class CoreQueryBuilder:
-    def __init__(self, core_args):
-        self.args = core_args
+    def __init__(self):
         self.query = {}
-        self.build_core_query()
 
-    def validate_parameters(self):
+    def validate_parameters(self, core_args: SearchArguments):
         """Validates that parameters is in dictionary form
         """
-        assert isinstance(self.args, Mapping), "parameters must be a dictionary"
+        assert isinstance(core_args, Mapping), "parameters must be a dictionary"
 
     def build_simple_query(self, dict_args):
         """Translates a dictionary of length 1 to
         a simple elasticsearch query
         """
-        self.validate_parameters()
+        self.validate_parameters(dict_args)
 
         if dict_args.get("multiple"):
             multiple_key = list(dict_args["multiple"])[0]
@@ -122,19 +121,19 @@ class CoreQueryBuilder:
                 sub_query = {"bool": {"must": content}}
         return sub_query
 
-    def build_core_query(self):
+    def build_core_query(self, core_args: SearchArguments):
         """Translates a full JSON body to
         the core of an elasticsearch query
         """
-        self.validate_parameters
+        self.validate_parameters(core_args)
 
-        if self.args == {}:
+        if core_args == {}:
             self.query = {"match_all": {}}
-        elif len(self.args) == 1:
-            self.query = self.build_simple_query(self.args)
-        elif len(self.args) > 1:
+        elif len(core_args) == 1:
+            self.query = self.build_simple_query(core_args)
+        elif len(core_args) > 1:
             inter_query = [
-                self.build_simple_query({sub_key: self.args[sub_key]}) for sub_key in self.args
+                self.build_simple_query({sub_key: core_args[sub_key]}) for sub_key in core_args
             ]
             self.query = {"bool": {"must": inter_query}}
         return self.query
