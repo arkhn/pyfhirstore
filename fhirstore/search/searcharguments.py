@@ -1,22 +1,19 @@
 from collections import defaultdict
 import re
 
-# Format the url args to a dict
+
 def url_to_dict(url_args):
     search_args = {key: url_args.getlist(key) for key in url_args.keys()}
     return search_args
 
 
-# Parse commas in a (key,value)
 def parse_comma(key, value):
-    has_comma = "," in value
-    if has_comma:
+    if "," in value:
         return "multiple", {key: value.split(",")}
     else:
         return key, [value]
 
 
-# Process all the dict for possible commas
 def pre_process_params(url_args):
     search_args = url_to_dict(url_args)
     processed_params = defaultdict(list)
@@ -39,28 +36,17 @@ def pre_process_params(url_args):
 
 
 class SearchArguments:
-    def __init__(self, url_args, resource_type):
-        self.args = pre_process_params(url_args)
-        self.resource_type = resource_type
-
-        # core args
+    def __init__(self):
         self.core_args = {}
         self.sort = None
 
-        # formatting args
-        self.elements = None
-        self.include = False
-
-        # meta args
-        self.summary = False
-        self.is_summary_count = False
-        self.offset = 0
-        self.result_size = 100
-
-
-class UrlParser:
-    def __init__(self):
-        self.core_args = {}
+        self.formatting_args = {
+            "include": False,
+            "is_summary_count": False,
+            "summary": False,
+            "elements": None,
+        }
+        self.meta_args = {"offset": 0, "result_size": 100}
 
     def sort_params(self, args):
         has_sort = None
@@ -73,14 +59,14 @@ class UrlParser:
             sorting_params = []
             for argument in has_sort:
                 # find a "-" before the argument. It indicates a sorting order different from default
-                has_minus = re.search(r"^-(.*)", argument)
+                has_minus = argument.startswith("-")
                 if has_minus:
                     # if the argument is -score, sort by ascending order (i.e. ascending relevance)
                     if has_minus.group(1) == "_score":
-                        sorting_params.append({has_minus.group(1): {"order": "asc"}})
+                        sorting_params.append({argument[1:]: {"order": "asc"}})
                     # for any other argument, sort by descending order
                     else:
-                        sorting_params.append({has_minus.group(1): {"order": "desc"}})
+                        sorting_params.append({argument[1:]: {"order": "desc"}})
                 # if there is no "-", use order defaults defined in elasticsearch
                 else:
                     sorting_params.append(argument)
@@ -96,6 +82,13 @@ class UrlParser:
             include = [re.search(r"(.*):(.*)", elem).group(2) for elem in attributes]
         return include
 
+    # def has_params(self,args):
+    #     has = None
+    #     for key, value in args.items():
+    #         has = re.search(r"^(_has):(.*)", key)
+    #         .group(2) if re.search(r"^(_has):(.*)", key) else None
+    #     return has
+
     def clean_params(self, args):
         if "multiple" in args:
             args["multiple"].pop("_element", None)
@@ -104,7 +97,7 @@ class UrlParser:
             args["multiple"].pop("_type", None)
 
         if args.get("multiple") == {}:
-            args = {}
+            args.pop("multiple")
 
         args.pop("_summary", None)
         args.pop("_element", None)
@@ -114,25 +107,27 @@ class UrlParser:
 
         return args
 
-    def parse_arguments(self, search_args: SearchArguments):
-        search_args.sort = self.sort_params(search_args.args)
-        search_args.include = self.include_params(search_args.args)
-        has_result_size = search_args.args.get("_count", None)
-        search_args.result_size = int(has_result_size[0]) if has_result_size else 100
-        search_args.summary = "_summary" in search_args.args and search_args.args["_summary"] != [
+    def parse_arguments(self, url_args, resource_type):
+        self.resource_type = resource_type
+        args = pre_process_params(url_args)
+        self.sort = self.sort_params(args)
+        self.formatting_args["include"] = self.include_params(args)
+        has_result_size = args.get("_count", None)
+        self.meta_args["result_size"] = (
+            int(has_result_size[0]) if has_result_size else 100
+        )
+        self.formatting_args["summary"] = "_summary" in args and args["_summary"] != [
             "false"
         ]
-        search_args.is_summary_count = (
-            "_summary" in search_args.args and search_args.args["_summary"][0] == "count"
+        self.formatting_args["is_summary_count"] = (
+            "_summary" in args and args["_summary"][0] == "count"
         )
 
-        if "_summary" in search_args.args and search_args.args["_summary"][0] == "text":
-            search_args.elements = ["text", "id", "meta"]
-        elif "_element" in search_args.args:
-            search_args.elements = search_args.args["_element"]
-        elif "multiple" in search_args.args:
-            search_args.elements = search_args.args["multiple"].get("_element", None)
+        if "_summary" in args and args["_summary"][0] == "text":
+            self.formatting_args["elements"] = ["text", "id", "meta"]
+        elif "_element" in args:
+            self.formatting_args["elements"] = args["_element"]
+        elif "multiple" in args:
+            self.formatting_args["elements"] = args["multiple"].get("_element", None)
 
-        search_args.core_args = self.clean_params(search_args.args)
-
-        return search_args
+        self.core_args = self.clean_params(args)

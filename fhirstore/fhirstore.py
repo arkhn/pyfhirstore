@@ -4,6 +4,7 @@ import logging
 import elasticsearch
 
 from collections import defaultdict
+from werkzeug.datastructures import ImmutableMultiDict
 from pymongo import MongoClient, ReturnDocument, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
@@ -11,7 +12,7 @@ from jsonschema import validate
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
-from fhirstore.search import UrlParser, SearchArguments, Formatter, Bundle, CoreQueryBuilder
+from fhirstore.search import SearchArguments, build_core_query, Bundle
 
 
 class NotFoundError(Exception):
@@ -33,18 +34,15 @@ class BadRequestError(Exception):
 class FHIRStore:
     def __init__(
         self,
-        client: MongoClient,
-        client_es: elasticsearch.Elasticsearch,
+        mongo_client: MongoClient,
+        es_client: elasticsearch.Elasticsearch,
         db_name: str,
         resources: dict = {},
     ):
-        self.es = client_es
-        self.db = client[db_name]
+        self.es = es_client
+        self.db = mongo_client[db_name]
         self.parser = SchemaParser()
         self.resources = resources
-        self.urlparser = UrlParser()
-        self.corequerybuilder = CoreQueryBuilder()
-        self.formatter = Formatter()
 
     def reset(self):
         """
@@ -61,9 +59,13 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
+            resources = tqdm(
+                resources, file=sys.stdout, desc="Bootstrapping collections..."
+            )
         for resource_name, schema in resources:
-            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
+            self.db.create_collection(
+                resource_name, **{"validator": {"$jsonSchema": schema}}
+            )
             # Add unique constraint on id
             self.db[resource_name].create_index("id", unique=True)
             # Add unique constraint on (identifier.system, identifier.value)
@@ -88,11 +90,15 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections, file=sys.stdout, desc="Loading collections from database...",
+                collections,
+                file=sys.stdout,
+                desc="Loading collections from database...",
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
+            json_schema = self.db.get_collection(collection).options()["validator"][
+                "$jsonSchema"
+            ]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -145,7 +151,9 @@ class FHIRStore:
             raise NotFoundError
         return res
 
-    def update(self, resource_type, instance_id, resource, bypass_document_validation=False):
+    def update(
+        self, resource_type, instance_id, resource, bypass_document_validation=False
+    ):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -174,7 +182,9 @@ class FHIRStore:
         except OperationFailure:
             self.validate(resource)
 
-    def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
+    def patch(
+        self, resource_type, instance_id, patch, bypass_document_validation=False
+    ):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -269,7 +279,7 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, resource_type, args):
+    def search(self, resource_type: str, args: ImmutableMultiDict):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -290,48 +300,52 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        raw_args = SearchArguments(args, resource_type)
+        search_args = SearchArguments()
+        search_args.parse_arguments(args, resource_type)
+        core_query = build_core_query(search_args.core_args)
 
-        parsed_args = self.urlparser.parse_arguments(raw_args)
-        core_query = self.corequerybuilder.build_core_query(parsed_args.core_args)
-        bundle = self.formatter.initiate_bundle(parsed_args, resource_type, Bundle())
+        bundle = Bundle()
+        bundle.initiate_bundle(search_args.formatting_args, resource_type)
 
-        if parsed_args.is_summary_count == True:
+        if search_args.formatting_args["is_summary_count"] == True:
             hits = self.es.count(
-                body={"query": core_query}, index=f"fhirstore.{parsed_args.resource_type.lower()}",
+                body={"query": core_query},
+                index=f"fhirstore.{search_args.resource_type.lower()}",
             )
-            bundle = self.formatter.fill_bundle(parsed_args, bundle, hits)
+            bundle.fill(search_args.formatting_args, hits)
 
         else:
             query = {
                 "min_score": 0.01,
-                "from": parsed_args.offset,
-                "size": parsed_args.result_size,
+                "from": search_args.meta_args["offset"],
+                "size": search_args.meta_args["result_size"],
                 "query": core_query,
             }
 
-            if parsed_args.sort:
-                query["sort"] = parsed_args.sort
+            if search_args.sort:
+                query["sort"] = search_args.sort
 
-            if parsed_args.elements:
-                query["_source"] = parsed_args.elements
+            if search_args.formatting_args["elements"]:
+                query["_source"] = search_args.formatting_args["elements"]
             # .lower() is used to fix the fact that monstache changes resourceTypes to
             # all lower case
             hits = self.es.search(
-                body=query, index=f"fhirstore.{parsed_args.resource_type.lower()}"
+                body=query, index=f"fhirstore.{search_args.resource_type.lower()}"
             )
 
-            bundle = self.formatter.fill_bundle(parsed_args, bundle, hits)
+            bundle.fill(search_args.formatting_args, hits)
 
-        if parsed_args.include and parsed_args.is_summary_count == False:
+        if (
+            search_args.formatting_args["include"]
+            and search_args.formatting_args["is_summary_count"] == False
+        ):
             included_hits = {}
-            # For each result instance
-            for item in bundle["entry"]:
+            for item in bundle.content["entry"]:
                 # only go over items that are not the result of an inclusion
                 if item["search"]["mode"] == "include":
                     continue
                 # For each attribute to include
-                for attribute in parsed_args.include:
+                for attribute in search_args.formatting_args["include"]:
                     # split the reference attribute "Practioner/123" into a
                     # resource "Practioner" and an id "123"
                     try:
@@ -341,7 +355,10 @@ class FHIRStore:
                         included_hits = self.es.search(
                             body={
                                 "query": {
-                                    "simple_query_string": {"query": included_id, "fields": ["id"],}
+                                    "simple_query_string": {
+                                        "query": included_id,
+                                        "fields": ["id"],
+                                    }
                                 }
                             },
                             index=f"fhirstore.{included_resource.lower()}",
@@ -353,8 +370,7 @@ class FHIRStore:
                             f"{e.info['error']['index']} is not indexed in the database yet."
                         )
 
-            bundle = self.formatter.add_included_bundle(parsed_args, bundle, included_hits)
-
+            bundle.append_bundle(search_args.formatting_args, included_hits)
         return bundle
 
     def upload_bundle(self, bundle):
