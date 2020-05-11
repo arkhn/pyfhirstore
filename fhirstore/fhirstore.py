@@ -247,7 +247,8 @@ class FHIRStore:
         if instance_id:
             res = self.db[resource_type].delete_one({"id": instance_id})
         elif identifier_id:
-            res = self.db[resource_type].delete_one({"identifier": identifier_id})
+            res = self.db[resource_type].delete_one(
+                {"identifier": {"value": identifier_id[0]['value'], 'system': identifier_id[0]['system']}})
         elif resource_id:
             res = self.db[resource_type].delete_many(
                 {
