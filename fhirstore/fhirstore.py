@@ -279,7 +279,7 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, resource_type: str, args: ImmutableMultiDict):
+    def search(self, search_args: SearchArguments):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -298,21 +298,18 @@ class FHIRStore:
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
-        self.validate_resource_type(resource_type)
+        self.validate_resource_type(search_args.resource_type)
 
-        search_args = SearchArguments()
-        search_args.parse_arguments(args, resource_type)
         core_query = build_core_query(search_args.core_args)
-
+        print(core_query)
         bundle = Bundle()
-        bundle.initiate_bundle(search_args.formatting_args, resource_type)
 
         if search_args.formatting_args["is_summary_count"] == True:
             hits = self.es.count(
                 body={"query": core_query},
                 index=f"fhirstore.{search_args.resource_type.lower()}",
             )
-            bundle.fill(search_args.formatting_args, hits)
+            bundle.fill(hits, search_args.formatting_args)
 
         else:
             query = {
@@ -322,19 +319,64 @@ class FHIRStore:
                 "query": core_query,
             }
 
-            if search_args.sort:
-                query["sort"] = search_args.sort
+            if search_args.formatting_args["sort"]:
+                query["sort"] = search_args.formatting_args["sort"]
 
             if search_args.formatting_args["elements"]:
                 query["_source"] = search_args.formatting_args["elements"]
+                
             # .lower() is used to fix the fact that monstache changes resourceTypes to
             # all lower case
             hits = self.es.search(
                 body=query, index=f"fhirstore.{search_args.resource_type.lower()}"
             )
 
-            bundle.fill(search_args.formatting_args, hits)
+            bundle.fill(hits, search_args.formatting_args)
 
+        return bundle
+
+
+    def comprehensive_search(self, resource_type: str, args: ImmutableMultiDict):
+        """ To deal with keywords : _include, _revinclude, _has
+        """
+        search_args = SearchArguments()
+        search_args.parse(args, resource_type)
+        
+        
+        # handle _has
+        rev_chain = search_args.reverse_chain
+        if rev_chain and rev_chain.is_queried == True:
+            inner_ids = []
+            #If there is a double _has chain
+            if len(rev_chain.has_args)==2:
+                outer_ids = []
+                rev_args_outer = SearchArguments()
+
+                #parse the outer chain and search the store
+                rev_args_outer.parse(rev_chain.has_args[1], rev_chain.resources_type[1])
+                chained_bundle_outer = self.search(rev_args_outer)
+
+                for item in chained_bundle_outer.content["entry"]:
+                        outer_ids.append(item["resource"][rev_chain.references[1]]["reference"].split(sep="/",maxsplit=1)[1])
+                
+                # fill the inner chain with the ids from the previous search
+                rev_chain.has_args[0][rev_chain.fields[0]] = outer_ids
+            
+            # If there is a single _has chain, fill it with the value
+            elif len(rev_chain.has_args)==1:
+                rev_chain.has_args[0][rev_chain.fields[0]] = rev_chain.value
+                
+            rev_args_inner = SearchArguments()
+            rev_args_inner.parse(rev_chain.has_args[0], rev_chain.resources_type[0])
+            chained_bundle_inner = self.search(rev_args_inner)
+
+            for item in chained_bundle_inner.content["entry"]:
+                inner_ids.append(item["resource"][rev_chain.references[0]]["reference"].split(sep="/",maxsplit=1)[1])
+            search_args.core_args["id"] = inner_ids
+        
+        bundle = self.search(search_args)
+
+        ## handle _include 
         if (
             search_args.formatting_args["include"]
             and search_args.formatting_args["is_summary_count"] == False
@@ -370,8 +412,12 @@ class FHIRStore:
                             f"{e.info['error']['index']} is not indexed in the database yet."
                         )
 
-            bundle.append_bundle(search_args.formatting_args, included_hits)
+            bundle.append(included_hits, search_args.formatting_args)
+         
         return bundle
+
+
+
 
     def upload_bundle(self, bundle):
         """

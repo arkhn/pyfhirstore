@@ -4,6 +4,7 @@ import json
 
 from collections import defaultdict
 from collections.abc import Mapping
+from fhirstore.search import SearchArguments, ReverseChain
 
 number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
 
@@ -18,9 +19,9 @@ def build_element_query(key, value):
         element_query["match"][key] = value
 
     else:
-        numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", f"{value}")
-        eq_prefix = re.search(r"^(eq)([0-9].*)$", f"{value}")
-        special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", f"{value}")
+        numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", value)
+        eq_prefix = re.search(r"^(eq)([0-9].*)$", value)
+        special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", value)
         pipe_suffix = re.search(r"(.*)\|(.*)", value)
 
         string_modif = re.search(
@@ -33,27 +34,29 @@ def build_element_query(key, value):
             string_field = string_modif.group(1)
             if string_modifier == "contains":
                 element_query["query_string"]["query"] = f"*{value}*"
-                element_query["query_string"]["default_field"] = string_field
+                element_query["query_string"]["fields"] = [string_field]
 
             elif string_modifier == "exact":
-                element_query["term"] = {string_field: value}
-
+                element_query["query_string"]["query"] = value
+                element_query["query_string"]["fields"] = [string_field]
+                
+                
             elif string_modifier == "not":
-                element_query["bool"]["must_not"]["match"][string_field] = f"{value}"
+                element_query["bool"]["must_not"]["match"] = {string_field: value} 
 
             elif string_modifier == "not-in":
-                element_query["simple_query_string"]["query"] = f"-{value}"
-                element_query["simple_query_string"]["fields"] = [string_field]
+                element_query["query_string"]["query"] = f"-{value}"
+                element_query["query_string"]["fields"] = [string_field]
 
             elif string_modifier == "in":
-                element_query["query_string"]["query"] = f"{value}"
+                element_query["query_string"]["query"] = value
 
             elif string_modifier == "below":
-                element_query["simple_query_string"]["query"] = f"({value})*"
-                element_query["simple_query_string"]["fields"] = [string_field]
+                element_query["query_string"]["query"] = f"({value})*"
+                element_query["query_string"]["fields"] = [string_field]
             elif string_modifier == "identifier":
-                element_query["simple_query_string"]["query"] = f"{value}"
-                element_query["simple_query_string"]["fields"] = [
+                element_query["query_string"]["query"] = value
+                element_query["query_string"]["fields"] = [
                     f"{string_field}.identifier.value"
                 ]
 
@@ -66,17 +69,17 @@ def build_element_query(key, value):
 
         elif special_prefix:
             if special_prefix.group(1) == "ne":
-                element_query["simple_query_string"][
+                element_query["query_string"][
                     "query"
                 ] = f"-{special_prefix.group(2)}"
-                element_query["simple_query_string"]["fields"] = [key]
+                element_query["query_string"]["fields"] = [key]
 
         elif pipe_suffix:
             system, code = re.split(r"\|", value)
             element_query["bool"]["must"] = [{"match": {f"{key}.system": system}}]
             element_query["bool"]["must"].append(
                 {
-                    "simple_query_string": {
+                    "query_string": {
                         "query": code,
                         "fields": [f"{key}.code", f"{key}.value"],
                     }
@@ -134,3 +137,5 @@ def build_core_query(core_args):
         ]
         query = {"bool": {"must": inter_query}}
     return query
+
+
