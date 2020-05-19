@@ -59,13 +59,9 @@ class FHIRStore:
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(
-                resources, file=sys.stdout, desc="Bootstrapping collections..."
-            )
+            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
         for resource_name, schema in resources:
-            self.db.create_collection(
-                resource_name, **{"validator": {"$jsonSchema": schema}}
-            )
+            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
             # Add unique constraint on id
             self.db[resource_name].create_index("id", unique=True)
             # Add unique constraint on (identifier.system, identifier.value)
@@ -90,15 +86,11 @@ class FHIRStore:
         if show_progress:
             tqdm.write("\n", end="")
             collections = tqdm(
-                collections,
-                file=sys.stdout,
-                desc="Loading collections from database...",
+                collections, file=sys.stdout, desc="Loading collections from database...",
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"][
-                "$jsonSchema"
-            ]
+            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
             self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
@@ -151,9 +143,7 @@ class FHIRStore:
             raise NotFoundError
         return res
 
-    def update(
-        self, resource_type, instance_id, resource, bypass_document_validation=False
-    ):
+    def update(self, resource_type, instance_id, resource, bypass_document_validation=False):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -182,9 +172,7 @@ class FHIRStore:
         except OperationFailure:
             self.validate(resource)
 
-    def patch(
-        self, resource_type, instance_id, patch, bypass_document_validation=False
-    ):
+    def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -301,13 +289,11 @@ class FHIRStore:
         self.validate_resource_type(search_args.resource_type)
 
         core_query = build_core_query(search_args.core_args)
-        print(core_query)
         bundle = Bundle()
 
         if search_args.formatting_args["is_summary_count"] == True:
             hits = self.es.count(
-                body={"query": core_query},
-                index=f"fhirstore.{search_args.resource_type.lower()}",
+                body={"query": core_query}, index=f"fhirstore.{search_args.resource_type.lower()}",
             )
             bundle.fill(hits, search_args.formatting_args)
 
@@ -324,7 +310,7 @@ class FHIRStore:
 
             if search_args.formatting_args["elements"]:
                 query["_source"] = search_args.formatting_args["elements"]
-                
+
             # .lower() is used to fix the fact that monstache changes resourceTypes to
             # all lower case
             hits = self.es.search(
@@ -335,48 +321,54 @@ class FHIRStore:
 
         return bundle
 
-
     def comprehensive_search(self, resource_type: str, args: ImmutableMultiDict):
         """ To deal with keywords : _include, _revinclude, _has
         """
         search_args = SearchArguments()
         search_args.parse(args, resource_type)
-        
-        
+
         # handle _has
         rev_chain = search_args.reverse_chain
         if rev_chain and rev_chain.is_queried == True:
             inner_ids = []
-            #If there is a double _has chain
-            if len(rev_chain.has_args)==2:
+            # If there is a double _has chain
+            if len(rev_chain.has_args) == 2:
                 outer_ids = []
                 rev_args_outer = SearchArguments()
 
-                #parse the outer chain and search the store
+                # parse the outer chain and search the store
                 rev_args_outer.parse(rev_chain.has_args[1], rev_chain.resources_type[1])
                 chained_bundle_outer = self.search(rev_args_outer)
 
                 for item in chained_bundle_outer.content["entry"]:
-                        outer_ids.append(item["resource"][rev_chain.references[1]]["reference"].split(sep="/",maxsplit=1)[1])
-                
+                    outer_ids.append(
+                        item["resource"][rev_chain.references[1]]["reference"].split(
+                            sep="/", maxsplit=1
+                        )[1]
+                    )
+
                 # fill the inner chain with the ids from the previous search
                 rev_chain.has_args[0][rev_chain.fields[0]] = outer_ids
-            
+
             # If there is a single _has chain, fill it with the value
-            elif len(rev_chain.has_args)==1:
+            elif len(rev_chain.has_args) == 1:
                 rev_chain.has_args[0][rev_chain.fields[0]] = rev_chain.value
-                
+
             rev_args_inner = SearchArguments()
             rev_args_inner.parse(rev_chain.has_args[0], rev_chain.resources_type[0])
             chained_bundle_inner = self.search(rev_args_inner)
 
             for item in chained_bundle_inner.content["entry"]:
-                inner_ids.append(item["resource"][rev_chain.references[0]]["reference"].split(sep="/",maxsplit=1)[1])
+                inner_ids.append(
+                    item["resource"][rev_chain.references[0]]["reference"].split(
+                        sep="/", maxsplit=1
+                    )[1]
+                )
             search_args.core_args["id"] = inner_ids
-        
+
         bundle = self.search(search_args)
 
-        ## handle _include 
+        ## handle _include
         if (
             search_args.formatting_args["include"]
             and search_args.formatting_args["is_summary_count"] == False
@@ -397,10 +389,7 @@ class FHIRStore:
                         included_hits = self.es.search(
                             body={
                                 "query": {
-                                    "simple_query_string": {
-                                        "query": included_id,
-                                        "fields": ["id"],
-                                    }
+                                    "simple_query_string": {"query": included_id, "fields": ["id"],}
                                 }
                             },
                             index=f"fhirstore.{included_resource.lower()}",
@@ -413,11 +402,8 @@ class FHIRStore:
                         )
 
             bundle.append(included_hits, search_args.formatting_args)
-         
+
         return bundle
-
-
-
 
     def upload_bundle(self, bundle):
         """

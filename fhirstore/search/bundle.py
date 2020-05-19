@@ -9,10 +9,10 @@ class Bundle:
         if formatting_args["is_summary_count"] == True:
             self.content["tag"] = {"code": "SUBSETTED"}
             self.content.pop("entry")
-            if hits != {}:
+            if len(hits):
                 self.content["total"] += hits["count"]
 
-        elif formatting_args["is_summary_count"] == False and hits != {} :
+        elif formatting_args["is_summary_count"] == False and len(hits):
             for h in hits["hits"]["hits"]:
                 self.content["entry"].append(
                     {"resource": h["_source"], "search": {"mode": "match"}}
@@ -20,7 +20,7 @@ class Bundle:
             self.content["total"] += hits["hits"]["total"]["value"]
         if formatting_args["elements"] or formatting_args["summary"]:
             self.content["tag"] = {"code": "SUBSETTED"}
-            
+
     def complete(self, new_bundle, formatting_args):
         self.content["total"] += new_bundle.content["total"]
         if not formatting_args["is_summary_count"]:
@@ -33,9 +33,7 @@ class Bundle:
                     {"resource": h["_source"], "search": {"mode": "include"}}
                 )
 
-    def fill_error(
-        self, severity="error", code="invalid", details=None, diagnostic=None
-    ):
+    def fill_error(self, severity="error", code="invalid", details=None, diagnostic=None):
         self.content["resource_type"] = "OperationOutcome"
         self.content["issue"] = {"severity": severity, "code": code}
         self.content.pop("total", None)
