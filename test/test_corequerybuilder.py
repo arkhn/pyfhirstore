@@ -34,46 +34,21 @@ def test_simple_query_exact():
     """Validates that the ES query is correct with modifier contains
     """
     result = build_core_query({"name.family:exact": ["Donald"]})
-    assert result == {"query_string": {"query": "Donald", "fields": ["name.family"]}}
+    assert result == {"simple_query_string": {"query": "Donald", "fields": ["name.family"]}}
 
 
-# TODO : new tests
-# def test_simple_query_not():
-#     """Validates that the ES query is correct with modifier contains
-#     """
-#     corequerybuilder = build_core_query({"name.family:exact": ["Donald"]})
-#     result = corequerybuilder.build_simple_query(corequerybuilder.args)
-#     assert result == {"query_string": {"query": "Donald", "fields": ["name.family"]}}
+def test_simple_query_not():
+    """Validates that the ES query is correct with modifier contains
+    """
+    result = build_core_query({"name.family:not": ["Donald"]})
+    assert result == {"simple_query_string": {"query": "-Donald", "fields": ["name.family"]}}
 
 
-# def test_simple_query_notin():
-#     """Validates that the ES query is correct with modifier contains
-#     """
-#     corequerybuilder = build_core_query({"name.family:exact": ["Donald"]})
-#     result = corequerybuilder.build_simple_query(corequerybuilder.args)
-#     assert result == {"query_string": {"query": "Donald", "fields": ["name.family"]}}
-
-# def test_simple_query_in():
-#     """Validates that the ES query is correct with modifier contains
-#     """
-#     corequerybuilder = build_core_query({"name.family:exact": ["Donald"]})
-#     result = corequerybuilder.build_simple_query(corequerybuilder.args)
-#     assert result == {"query_string": {"query": "Donald", "fields": ["name.family"]}}
-
-# def test_simple_query_below():
-#     """Validates that the ES query is correct with modifier contains
-#     """
-#     corequerybuilder = build_core_query({"name.family:exact": ["Donald"]})
-#     result = corequerybuilder.build_simple_query(corequerybuilder.args)
-#     assert result == {"query_string": {"query": "Donald", "fields": ["name.family"]}}
-
-
-# def test_simple_query_identifier():
-#     """Validates that the ES query is correct with modifier contains
-#     """
-#     corequerybuilder = build_core_query({"name.family:exact": ["Donald"]})
-#     result = corequerybuilder.build_simple_query(corequerybuilder.args)
-#     assert result == {"query_string": {"query": "Donald", "fields": ["name.family"]}}
+def test_simple_query_identifier():
+    """Validates that the ES query is correct with modifier contains
+    """
+    result = build_simple_query({"managingOrganization:identifier": ["urn:oid:0.7.6.5.4.3.2|98765"]})
+    assert result == {"simple_query_string": {'query': 'urn:oid:0.7.6.5.4.3.2|98765', 'fields': ['managingOrganization.identifier.value']}}
 
 
 def test_simple_query_gt():
@@ -111,13 +86,11 @@ def test_simple_query_eq():
     assert result == {"match": {"birthDate": "1974-12-25"}}
 
 
-# TODO: test ne
-# def test_simple_query_ne():
-#     """Validates that the ES query is correct with modifier 'gt'
-#     """
-#     corequerybuilder = build_core_query({"birthDate": ["gt1974-12-25"]})
-#     result = corequerybuilder.build_simple_query(corequerybuilder.args)
-#     assert result == {"range": {"birthDate": {"gt": "1974-12-25"}}}
+def test_simple_query_ne():
+    """Validates that the ES query is correct with modifier 'gt'
+    """
+    result = build_core_query({"birthDate": ["ne1974-12-25"]})
+    assert result == {"simple_query_string": {"query": "-1974-12-25", "fields": ["birthDate"]}}
 
 
 def test_composite_query_pipe():
@@ -129,7 +102,7 @@ def test_composite_query_pipe():
             "must": [
                 {"match": {"contained.code.coding.system": "http://snomed.info/sct"}},
                 {
-                    "query_string": {
+                    "simple_query_string": {
                         "query": "324252006",
                         "fields": ["contained.code.coding.code", "contained.code.coding.value",],
                     },

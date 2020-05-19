@@ -28,7 +28,8 @@ def build_element_query(key, value):
             r"^(.*):(contains|exact|above|below|not|in|not-in|of-type|identifier)$", key
         )
         if key == "_text" or key == "_content":
-            element_query["query_string"]["query"] = value
+            element_query["simple_query_string"]["query"] = value
+            
         elif string_modif:
             string_modifier = string_modif.group(2)
             string_field = string_modif.group(1)
@@ -37,26 +38,28 @@ def build_element_query(key, value):
                 element_query["query_string"]["fields"] = [string_field]
 
             elif string_modifier == "exact":
-                element_query["query_string"]["query"] = value
-                element_query["query_string"]["fields"] = [string_field]
-                
+                element_query["simple_query_string"]["query"] = value
+                element_query["simple_query_string"]["fields"] = [string_field]
                 
             elif string_modifier == "not":
-                element_query["bool"]["must_not"]["match"] = {string_field: value} 
+                element_query["simple_query_string"]["query"] = f"-{value}"
+                element_query["simple_query_string"]["fields"] = [string_field]
 
             elif string_modifier == "not-in":
-                element_query["query_string"]["query"] = f"-{value}"
-                element_query["query_string"]["fields"] = [string_field]
+                element_query["simple_query_string"]["query"] = f"-{value}"
+                element_query["simple_query_string"]["fields"] = [string_field]
 
             elif string_modifier == "in":
-                element_query["query_string"]["query"] = value
+                element_query["simple_query_string"]["query"] = value
+                element_query["simple_query_string"]["fields"] = [string_field]
 
             elif string_modifier == "below":
-                element_query["query_string"]["query"] = f"({value})*"
-                element_query["query_string"]["fields"] = [string_field]
+                element_query["simple_query_string"]["query"] = f"({value})*"
+                element_query["simple_query_string"]["fields"] = [string_field]
+                
             elif string_modifier == "identifier":
-                element_query["query_string"]["query"] = value
-                element_query["query_string"]["fields"] = [
+                element_query["simple_query_string"]["query"] = value
+                element_query["simple_query_string"]["fields"] = [
                     f"{string_field}.identifier.value"
                 ]
 
@@ -69,17 +72,17 @@ def build_element_query(key, value):
 
         elif special_prefix:
             if special_prefix.group(1) == "ne":
-                element_query["query_string"][
+                element_query["simple_query_string"][
                     "query"
                 ] = f"-{special_prefix.group(2)}"
-                element_query["query_string"]["fields"] = [key]
+                element_query["simple_query_string"]["fields"] = [key]
 
         elif pipe_suffix:
             system, code = re.split(r"\|", value)
             element_query["bool"]["must"] = [{"match": {f"{key}.system": system}}]
             element_query["bool"]["must"].append(
                 {
-                    "query_string": {
+                    "simple_query_string": {
                         "query": code,
                         "fields": [f"{key}.code", f"{key}.value"],
                     }

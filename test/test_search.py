@@ -109,7 +109,7 @@ def test_search_one_param_modifier_str_contains(store: FHIRStore):
         != "Organization/2.16.840.1.113883.19.5"
         for element in result.content["entry"]
     )
-
+    
 
 def test_search_one_param_modifier_str_exact(store: FHIRStore):
     """Checks that "exact" string modifier works
@@ -126,6 +126,17 @@ def test_search_one_param_modifier_str_exact(store: FHIRStore):
         for element in result.content["entry"]
     )
 
+
+def test_search_one_param_modifier_str_not(store: FHIRStore):
+    """Checks that "not" string modifier works
+    """
+    result = store.comprehensive_search(
+        "Patient", ImmutableMultiDict([("name.family:not", "Donald")])
+    )
+    assert all(
+        element["resource"]["name"][0]["family"] != "Donald"
+        for element in result.content["entry"]
+    )
 
 def test_search_two_params_and(store: FHIRStore):
     """Checks two parameter "and" search

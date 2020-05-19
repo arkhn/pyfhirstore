@@ -51,13 +51,6 @@ def test_search_bad_resource_type(store: FHIRStore):
         store.comprehensive_search(resource_type="unknown", args={})
 
 
-# def test_search_bad_params(store: FHIRStore):
-#     """search() raises an error if params is not a dictionary"""
-
-#     with raises(AssertionError, match="parameters must be a dictionary"):
-#         store.search(resource_type="Patient", args="gender")
-
-
 def test_search_output_type(store: FHIRStore, insert_patient):
     """Check that the output type is correct
     """
