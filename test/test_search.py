@@ -109,7 +109,7 @@ def test_search_one_param_modifier_str_contains(store: FHIRStore):
         != "Organization/2.16.840.1.113883.19.5"
         for element in result.content["entry"]
     )
-    
+
 
 def test_search_one_param_modifier_str_exact(store: FHIRStore):
     """Checks that "exact" string modifier works
@@ -134,9 +134,9 @@ def test_search_one_param_modifier_str_not(store: FHIRStore):
         "Patient", ImmutableMultiDict([("name.family:not", "Donald")])
     )
     assert all(
-        element["resource"]["name"][0]["family"] != "Donald"
-        for element in result.content["entry"]
+        element["resource"]["name"][0]["family"] != "Donald" for element in result.content["entry"]
     )
+
 
 def test_search_two_params_and(store: FHIRStore):
     """Checks two parameter "and" search
@@ -198,6 +198,7 @@ def test_search_and_or(store: FHIRStore):
         element["resource"]["identifier"][0]["value"] == "12345"
         for element in result.content["entry"]
     )
+    assert all(
         element["resource"]["name"][0]["family"] == "Levin" or "Chalmers"
         for element in result.content["entry"]
     )
@@ -256,6 +257,12 @@ def test_search_two_elements(store: FHIRStore):
     assert result.content["tag"]["code"] == "SUBSETTED"
     assert result.content["entry"] == [
         {"resource": {}, "search": {"mode": "match"}},
+        {"resource": {"birthDate": "1932-09-24"}, "search": {"mode": "match"}},
+        {"resource": {"birthDate": "1974-12-25"}, "search": {"mode": "match"}},
+    ]
+
+
+def test_search_summary_text(store: FHIRStore):
     result = store.comprehensive_search("Patient", ImmutableMultiDict([("_summary", "text")]))
     assert result.content["total"] == 3
     assert result.content["tag"]["code"] == "SUBSETTED"
