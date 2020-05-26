@@ -319,6 +319,11 @@ class FHIRStore:
 
             bundle.fill(hits, search_args.formatting_args)
 
+            if "hits" in included_hits:
+                for h in included_hits["hits"]["hits"]:
+                    bundle["entry"].append(
+                        {"resource": h["_source"], "search": {"mode": "include"}}
+                    )
         return bundle
 
     def comprehensive_search(self, resource_type: str, args: ImmutableMultiDict):

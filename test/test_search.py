@@ -198,71 +198,12 @@ def test_search_and_or(store: FHIRStore):
         element["resource"]["identifier"][0]["value"] == "12345"
         for element in result.content["entry"]
     )
-    assert all(
         element["resource"]["name"][0]["family"] == "Levin" or "Chalmers"
         for element in result.content["entry"]
     )
     assert all(
         element["resource"]["name"][0]["family"] != "Donald" for element in result.content["entry"]
     )
-
-
-def test_search_nothing_found(store: FHIRStore):
-    """Check that nothing is returned when nothing matches the query
-    """
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("identifier.value", "fejrfkfnrd")])
-    )
-    assert result.content["entry"] == []
-
-
-def test_search_max_size(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("_count", "2")]))
-    assert len(result.content["entry"]) == 2
-
-
-def test_search_zero_size(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("_count", "0")]))
-    assert len(result.content["entry"]) == 0
-
-
-def test_search_size_reach_max(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("_count", "101")]))
-    assert len(result.content["entry"]) == 3
-
-
-def test_search_simple_array(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("name.family", "Windsor")]))
-    assert result.content["entry"][0]["resource"]["name"][2]["family"] == "Windsor"
-
-
-def test_search_multiple_modifiers(store: FHIRStore):
-    result = store.comprehensive_search(
-        "MedicationRequest",
-        ImmutableMultiDict(
-            [
-                ("dispenseRequest.expectedSupplyDuration.value", "ge4.9"),
-                ("dispenseRequest.expectedSupplyDuration.value", "le5.1"),
-            ]
-        ),
-    )
-    assert len(result.content["entry"]) == 1
-    assert (
-        result.content["entry"][0]["resource"]["dispenseRequest"]["expectedSupplyDuration"]["value"]
-        >= 4.9
-    )
-    assert (
-        result.content["entry"][0]["resource"]["dispenseRequest"]["expectedSupplyDuration"]["value"]
-        <= 5.1
-    )
-
-
-def test_search_ne(store: FHIRStore):
-    result = store.comprehensive_search(
-        "MedicationRequest",
-        ImmutableMultiDict([("dispenseRequest.expectedSupplyDuration.value", "ne5")]),
-    )
-    assert len(result.content["entry"]) == 0
 
 
 def test_search_identifier(store: FHIRStore):
@@ -315,12 +256,6 @@ def test_search_two_elements(store: FHIRStore):
     assert result.content["tag"]["code"] == "SUBSETTED"
     assert result.content["entry"] == [
         {"resource": {}, "search": {"mode": "match"}},
-        {"resource": {"birthDate": "1932-09-24"}, "search": {"mode": "match"}},
-        {"resource": {"birthDate": "1974-12-25"}, "search": {"mode": "match"}},
-    ]
-
-
-def test_search_summary_text(store: FHIRStore):
     result = store.comprehensive_search("Patient", ImmutableMultiDict([("_summary", "text")]))
     assert result.content["total"] == 3
     assert result.content["tag"]["code"] == "SUBSETTED"
