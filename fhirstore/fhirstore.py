@@ -291,7 +291,7 @@ class FHIRStore:
         core_query = build_core_query(search_args.core_args)
         bundle = Bundle()
 
-        if search_args.formatting_args["is_summary_count"] == True:
+        if search_args.formatting_args["is_summary_count"]:
             hits = self.es.count(
                 body={"query": core_query}, index=f"fhirstore.{search_args.resource_type.lower()}",
             )
@@ -329,7 +329,7 @@ class FHIRStore:
 
         # handle _has
         rev_chain = search_args.reverse_chain
-        if rev_chain and rev_chain.is_queried == True:
+        if rev_chain and rev_chain.is_queried:
             inner_ids = []
             # If there is a double _has chain
             if len(rev_chain.has_args) == 2:
@@ -371,7 +371,7 @@ class FHIRStore:
         ## handle _include
         if (
             search_args.formatting_args["include"]
-            and search_args.formatting_args["is_summary_count"] == False
+            and not search_args.formatting_args["is_summary_count"]
         ):
             included_hits = {}
             for item in bundle.content["entry"]:

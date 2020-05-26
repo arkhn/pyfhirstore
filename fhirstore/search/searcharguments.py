@@ -9,10 +9,10 @@ def url_to_dict(url_args):
     if isinstance(url_args, ImmutableMultiDict):
         search_args = {key: url_args.getlist(key) for key in url_args.keys()}
         return search_args
-    else :
+    else:
         return url_args
- 
-    
+
+
 def parse_comma(key, value):
     if "," in value:
         return "multiple", {key: value.split(",")}
@@ -38,9 +38,18 @@ def pre_process_params(url_args):
                     processed_params[parsed_key].append(parsed_value[0])
     return processed_params
 
+
 class ReverseChain:
+    """Reverse Chaining is used to select resources based on the properties of
+    resources that refer to them.
+    Example: Patient?_has:Observation:patient:code=1234-5 returns Patient resources,
+    where the patient resource is referred to by at least one Observation where the
+    observation has a code of 1234, and where the Observation refers to the patient
+    resource in the patient search parameter
+    """
+
     def __init__(self):
-        self.is_queried= False
+        self.is_queried = False
         self.resources_type = []
         self.references = []
         self.fields = []
@@ -56,20 +65,24 @@ class ReverseChain:
                 self.resources_type.append(chain_elements[4])
                 self.references.append(chain_elements[5])
                 self.fields.append(chain_elements[6])
-            else :
-                self.fields.append(chain_elements[3])
-                
-    def format(self):
-        if self.is_queried== True:
-            self.has_args = []
-            if len(self.resources_type)==1:
-                self.has_args.append({"_elements": [f"{self.references[0]}.reference"], 
-                        self.fields[0]: []})
             else:
-                self.has_args.append({"_elements": [f"{self.references[1]}.reference"], 
-                        self.fields[1]: self.value})
-                self.has_args.append({"_elements": [f"{self.references[0]}.reference"], 
-                        self.fields[0]:[]})
+                self.fields.append(chain_elements[3])
+
+    def format(self):
+        if self.is_queried == True:
+            self.has_args = []
+            if len(self.resources_type) == 1:
+                self.has_args.append(
+                    {"_elements": [f"{self.references[0]}.reference"], self.fields[0]: []}
+                )
+            else:
+                self.has_args.append(
+                    {"_elements": [f"{self.references[1]}.reference"], self.fields[1]: self.value}
+                )
+                self.has_args.append(
+                    {"_elements": [f"{self.references[0]}.reference"], self.fields[0]: []}
+                )
+
 
 class SearchArguments:
     def __init__(self):
@@ -117,12 +130,12 @@ class SearchArguments:
             include = [re.search(r"(.*):(.*)", elem).group(2) for elem in attributes]
         return include
 
-    def has_reverse_chain(self,args):
+    def has_reverse_chain(self, args):
         reverse_chain = ReverseChain()
         # TODO handle independent _has
         for key in list(args):
             if key.startswith("_has:"):
-                reverse_chain.parse(key,args[key])
+                reverse_chain.parse(key, args[key])
                 args.pop(key)
                 reverse_chain.format()
         return reverse_chain
@@ -152,12 +165,8 @@ class SearchArguments:
         self.reverse_chain = self.has_reverse_chain(args)
         self.formatting_args["include"] = self.include_params(args)
         has_result_size = args.get("_count", None)
-        self.meta_args["result_size"] = (
-            int(has_result_size[0]) if has_result_size else 100
-        )
-        self.formatting_args["summary"] = "_summary" in args and args["_summary"] != [
-            "false"
-        ]
+        self.meta_args["result_size"] = int(has_result_size[0]) if has_result_size else 100
+        self.formatting_args["summary"] = "_summary" in args and args["_summary"] != ["false"]
         self.formatting_args["is_summary_count"] = (
             "_summary" in args and args["_summary"][0] == "count"
         )
