@@ -1,17 +1,18 @@
 import sys
 import re
 import logging
+import elasticsearch
 
 from collections import defaultdict
+from werkzeug.datastructures import ImmutableMultiDict
 from pymongo import MongoClient, ReturnDocument, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 from jsonschema import validate
-import elasticsearch
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
-from fhirstore.search.search_methods import build_core_query
+from fhirstore.search import SearchArguments, build_core_query, Bundle
 
 
 class NotFoundError(Exception):
@@ -33,13 +34,13 @@ class BadRequestError(Exception):
 class FHIRStore:
     def __init__(
         self,
-        client: MongoClient,
-        client_es: elasticsearch.Elasticsearch,
+        mongo_client: MongoClient,
+        es_client: elasticsearch.Elasticsearch,
         db_name: str,
         resources: dict = {},
     ):
-        self.es = client_es
-        self.db = client[db_name]
+        self.es = es_client
+        self.db = mongo_client[db_name]
         self.parser = SchemaParser()
         self.resources = resources
 
@@ -266,16 +267,7 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(
-        self,
-        resource_type,
-        params,
-        result_size=100,
-        elements=None,
-        offset=0,
-        sort=None,
-        include=None,
-    ):
+    def search(self, search_args: SearchArguments):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -294,43 +286,100 @@ class FHIRStore:
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
-        self.validate_resource_type(resource_type)
+        self.validate_resource_type(search_args.resource_type)
 
-        core_query = build_core_query(params)
-        query = {
-            "min_score": 0.01,
-            "from": offset,
-            "size": result_size,
-            "query": core_query,
-        }
+        core_query = build_core_query(search_args.core_args)
+        bundle = Bundle()
 
-        if sort:
-            query["sort"] = sort
+        if search_args.formatting_args["is_summary_count"]:
+            hits = self.es.count(
+                body={"query": core_query}, index=f"fhirstore.{search_args.resource_type.lower()}",
+            )
+            bundle.fill(hits, search_args.formatting_args)
 
-        if elements:
-            query["_source"] = elements
+        else:
+            query = {
+                "min_score": 0.01,
+                "from": search_args.meta_args["offset"],
+                "size": search_args.meta_args["result_size"],
+                "query": core_query,
+            }
 
-        # .lower() is used to fix the fact that monstache changes resourceTypes to
-        # all lower case
-        hits = self.es.search(body=query, index=f"fhirstore.{resource_type.lower()}")
-        bundle = {
-            "resource_type": "Bundle",
-            "entry": [
-                {"resource": h["_source"], "search": {"mode": "match"}}
-                for h in hits["hits"]["hits"]
-            ],
-            "total": hits["hits"]["total"]["value"],
-        }
+            if search_args.formatting_args["sort"]:
+                query["sort"] = search_args.formatting_args["sort"]
 
-        if elements:
-            bundle["tag"] = {"code": "SUBSETTED"}
+            if search_args.formatting_args["elements"]:
+                query["_source"] = search_args.formatting_args["elements"]
 
-        if include:
+            # .lower() is used to fix the fact that monstache changes resourceTypes to
+            # all lower case
+            hits = self.es.search(
+                body=query, index=f"fhirstore.{search_args.resource_type.lower()}"
+            )
+
+            bundle.fill(hits, search_args.formatting_args)
+
+        return bundle
+
+    def comprehensive_search(self, resource_type: str, args: ImmutableMultiDict):
+        """ To deal with keywords : _include, _revinclude, _has
+        """
+        search_args = SearchArguments()
+        search_args.parse(args, resource_type)
+
+        # handle _has
+        rev_chain = search_args.reverse_chain
+        if rev_chain and rev_chain.is_queried:
+            inner_ids = []
+            # If there is a double _has chain
+            if len(rev_chain.has_args) == 2:
+                outer_ids = []
+                rev_args_outer = SearchArguments()
+
+                # parse the outer chain and search the store
+                rev_args_outer.parse(rev_chain.has_args[1], rev_chain.resources_type[1])
+                chained_bundle_outer = self.search(rev_args_outer)
+
+                for item in chained_bundle_outer.content["entry"]:
+                    outer_ids.append(
+                        item["resource"][rev_chain.references[1]]["reference"].split(
+                            sep="/", maxsplit=1
+                        )[1]
+                    )
+
+                # fill the inner chain with the ids from the previous search
+                rev_chain.has_args[0][rev_chain.fields[0]] = outer_ids
+
+            # If there is a single _has chain, fill it with the value
+            elif len(rev_chain.has_args) == 1:
+                rev_chain.has_args[0][rev_chain.fields[0]] = rev_chain.value
+
+            rev_args_inner = SearchArguments()
+            rev_args_inner.parse(rev_chain.has_args[0], rev_chain.resources_type[0])
+            chained_bundle_inner = self.search(rev_args_inner)
+
+            for item in chained_bundle_inner.content["entry"]:
+                inner_ids.append(
+                    item["resource"][rev_chain.references[0]]["reference"].split(
+                        sep="/", maxsplit=1
+                    )[1]
+                )
+            search_args.core_args["id"] = inner_ids
+
+        bundle = self.search(search_args)
+
+        ## handle _include
+        if (
+            search_args.formatting_args["include"]
+            and not search_args.formatting_args["is_summary_count"]
+        ):
             included_hits = {}
-            # For each result instance
-            for item in bundle["entry"]:
+            for item in bundle.content["entry"]:
+                # only go over items that are not the result of an inclusion
+                if item["search"]["mode"] == "include":
+                    continue
                 # For each attribute to include
-                for attribute in include:
+                for attribute in search_args.formatting_args["include"]:
                     # split the reference attribute "Practioner/123" into a
                     # resource "Practioner" and an id "123"
                     try:
@@ -340,7 +389,7 @@ class FHIRStore:
                         included_hits = self.es.search(
                             body={
                                 "query": {
-                                    "simple_query_string": {"query": included_id, "fields": ["id"]}
+                                    "simple_query_string": {"query": included_id, "fields": ["id"],}
                                 }
                             },
                             index=f"fhirstore.{included_resource.lower()}",
@@ -351,31 +400,10 @@ class FHIRStore:
                         logging.warning(
                             f"{e.info['error']['index']} is not indexed in the database yet."
                         )
-                    # search the db for the specific resource to include
 
-            if "hits" in included_hits:
-                for h in included_hits["hits"]["hits"]:
-                    bundle["entry"].append(
-                        {"resource": h["_source"], "search": {"mode": "include"}}
-                    )
+            bundle.append(included_hits, search_args.formatting_args)
+
         return bundle
-
-    def count(self, resource_type, params):
-        """Counts how many results match this query
-        """
-        self.validate_resource_type(resource_type)
-
-        core_query = build_core_query(params)
-        query = {"query": core_query}
-
-        # .lower() is used to fix the fact that monstache changes resourceTypes to
-        # all lower case
-        hits = self.es.count(body=query, index=f"fhirstore.{resource_type.lower()}")
-        return {
-            "resource_type": "Bundle",
-            "tag": {"code": "SUBSETTED"},
-            "total": hits["count"],
-        }
 
     def upload_bundle(self, bundle):
         """
