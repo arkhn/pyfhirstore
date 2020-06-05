@@ -29,7 +29,7 @@ def build_element_query(key, value):
         )
         if key == "_text" or key == "_content":
             element_query["simple_query_string"]["query"] = value
-            
+
         elif string_modif:
             string_modifier = string_modif.group(2)
             string_field = string_modif.group(1)
@@ -38,9 +38,10 @@ def build_element_query(key, value):
                 element_query["query_string"]["fields"] = [string_field]
 
             elif string_modifier == "exact":
-                element_query["simple_query_string"]["query"] = value
+                element_query["simple_query_string"]["query"] = f'"{value}"'
                 element_query["simple_query_string"]["fields"] = [string_field]
-                
+                element_query["simple_query_string"]["flags"] = "PHRASE"
+
             elif string_modifier == "not":
                 element_query["simple_query_string"]["query"] = f"-{value}"
                 element_query["simple_query_string"]["fields"] = [string_field]
@@ -50,18 +51,20 @@ def build_element_query(key, value):
                 element_query["simple_query_string"]["fields"] = [string_field]
 
             elif string_modifier == "in":
-                element_query["simple_query_string"]["query"] = value
+                element_query["simple_query_string"]["query"] = f'"{value}"'
                 element_query["simple_query_string"]["fields"] = [string_field]
+                element_query["simple_query_string"]["flags"] = "PHRASE"
 
             elif string_modifier == "below":
                 element_query["simple_query_string"]["query"] = f"({value})*"
                 element_query["simple_query_string"]["fields"] = [string_field]
-                
+
             elif string_modifier == "identifier":
-                element_query["simple_query_string"]["query"] = value
+                element_query["simple_query_string"]["query"] = f'"{value}"'
                 element_query["simple_query_string"]["fields"] = [
                     f"{string_field}.identifier.value"
                 ]
+                element_query["simple_query_string"]["flags"] = "PHRASE"
 
         elif numeric_prefix:
             element_query["range"][key] = {
@@ -72,26 +75,34 @@ def build_element_query(key, value):
 
         elif special_prefix:
             if special_prefix.group(1) == "ne":
-                element_query["simple_query_string"][
-                    "query"
-                ] = f"-{special_prefix.group(2)}"
+                element_query["simple_query_string"]["query"] = f"-{special_prefix.group(2)}"
                 element_query["simple_query_string"]["fields"] = [key]
 
         elif pipe_suffix:
             system, code = re.split(r"\|", value)
-            element_query["bool"]["must"] = [{"match": {f"{key}.system": system}}]
+            element_query["bool"]["must"] = [
+                {
+                    "simple_query_string": {
+                        "query": f'"{system}"',
+                        "fields": [f"{key}.system"],
+                        "flags": "PHRASE",
+                    }
+                }
+            ]
             element_query["bool"]["must"].append(
                 {
                     "simple_query_string": {
-                        "query": code,
+                        "query": f'"{code}"',
                         "fields": [f"{key}.code", f"{key}.value"],
+                        "flags": "PHRASE",
                     }
                 }
             )
 
         elif isinstance(value, str):
-            element_query["simple_query_string"]["query"] = f"({value})*"
+            element_query["simple_query_string"]["query"] = f'"{value}"'
             element_query["simple_query_string"]["fields"] = [key]
+            element_query["simple_query_string"]["flags"] = "PHRASE"
 
     return element_query
 
@@ -111,7 +122,7 @@ def build_simple_query(dict_args):
     if dict_args.get("multiple"):
         multiple_key = list(dict_args["multiple"])[0]
         multiple_values = dict_args["multiple"][multiple_key]
-        content = [{"match": {multiple_key: element}} for element in multiple_values]
+        content = [build_element_query(multiple_key, element) for element in multiple_values]
         sub_query = {"bool": {"should": content}}
     else:
         key = list(dict_args)[0]
@@ -135,10 +146,6 @@ def build_core_query(core_args):
     elif len(core_args) == 1:
         query = build_simple_query(core_args)
     elif len(core_args) > 1:
-        inter_query = [
-            build_simple_query({sub_key: core_args[sub_key]}) for sub_key in core_args
-        ]
+        inter_query = [build_simple_query({sub_key: core_args[sub_key]}) for sub_key in core_args]
         query = {"bool": {"must": inter_query}}
     return query
-
-
