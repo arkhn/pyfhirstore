@@ -34,7 +34,9 @@ def test_simple_query_exact():
     """Validates that the ES query is correct with modifier contains
     """
     result = build_core_query({"name.family:exact": ["Donald"]})
-    assert result == {"simple_query_string": {"query": "Donald", "fields": ["name.family"]}}
+    assert result == {
+        "simple_query_string": {"query": '"Donald"', "fields": ["name.family"], "flags": "PHRASE"}
+    }
 
 
 def test_simple_query_not():
@@ -47,8 +49,16 @@ def test_simple_query_not():
 def test_simple_query_identifier():
     """Validates that the ES query is correct with modifier contains
     """
-    result = build_simple_query({"managingOrganization:identifier": ["urn:oid:0.7.6.5.4.3.2|98765"]})
-    assert result == {"simple_query_string": {'query': 'urn:oid:0.7.6.5.4.3.2|98765', 'fields': ['managingOrganization.identifier.value']}}
+    result = build_simple_query(
+        {"managingOrganization:identifier": ["urn:oid:0.7.6.5.4.3.2|98765"]}
+    )
+    assert result == {
+        "simple_query_string": {
+            "query": '"urn:oid:0.7.6.5.4.3.2|98765"',
+            "fields": ["managingOrganization.identifier.value"],
+            "flags": "PHRASE",
+        }
+    }
 
 
 def test_simple_query_gt():
@@ -100,12 +110,19 @@ def test_composite_query_pipe():
     assert result == {
         "bool": {
             "must": [
-                {"match": {"contained.code.coding.system": "http://snomed.info/sct"}},
                 {
                     "simple_query_string": {
-                        "query": "324252006",
-                        "fields": ["contained.code.coding.code", "contained.code.coding.value",],
-                    },
+                        "query": '"http://snomed.info/sct"',
+                        "fields": ["contained.code.coding.system"],
+                        "flags": "PHRASE",
+                    }
+                },
+                {
+                    "simple_query_string": {
+                        "query": '"324252006"',
+                        "fields": ["contained.code.coding.code", "contained.code.coding.value"],
+                        "flags": "PHRASE",
+                    }
                 },
             ]
         }
@@ -115,7 +132,9 @@ def test_composite_query_pipe():
 def test_simple_query_string():
     """Validates that the ES query is correct"""
     result = build_simple_query({"birthDate": ["1974-12-25"]})
-    assert result == {"simple_query_string": {"fields": ["birthDate"], "query": "(1974-12-25)*"}}
+    assert result == {
+        "simple_query_string": {"fields": ["birthDate"], "query": '"1974-12-25"', "flags": "PHRASE"}
+    }
 
 
 def test_simple_query_output():
@@ -164,13 +183,32 @@ def test_core_query_builder_float():
 def test_core_query_correct_string():
     """Validates that the ES query is correct"""
     corequerybuilder = build_core_query({"birthDate": ["1974-12-25"]})
-    assert corequerybuilder == {"simple_query_string": {"fields": ["birthDate"], "query": "(1974-12-25)*"}}
+    assert corequerybuilder == {
+        "simple_query_string": {"fields": ["birthDate"], "query": '"1974-12-25"', "flags": "PHRASE"}
+    }
 
 
 def test_core_query_multiple():
     corequerybuilder = build_core_query({"multiple": {"language": ["NL", "EN"]}})
     assert corequerybuilder == {
-        "bool": {"should": [{"match": {"language": "NL"}}, {"match": {"language": "EN"}}]}
+        "bool": {
+            "should": [
+                {
+                    "simple_query_string": {
+                        "query": '"NL"',
+                        "fields": ["language"],
+                        "flags": "PHRASE",
+                    }
+                },
+                {
+                    "simple_query_string": {
+                        "query": '"EN"',
+                        "fields": ["language"],
+                        "flags": "PHRASE",
+                    }
+                },
+            ]
+        }
     }
 
 
@@ -181,10 +219,31 @@ def test_core_query_composite():
     assert corequerybuilder == {
         "bool": {
             "must": [
-                {"simple_query_string": {"query": "(FR)*", "fields": ["language"]}},
+                {
+                    "simple_query_string": {
+                        "query": '"FR"',
+                        "fields": ["language"],
+                        "flags": "PHRASE",
+                    }
+                },
                 {
                     "bool": {
-                        "should": [{"match": {"language": "NL"}}, {"match": {"language": "EN"}}]
+                        "should": [
+                            {
+                                "simple_query_string": {
+                                    "query": '"NL"',
+                                    "fields": ["language"],
+                                    "flags": "PHRASE",
+                                }
+                            },
+                            {
+                                "simple_query_string": {
+                                    "query": '"EN"',
+                                    "fields": ["language"],
+                                    "flags": "PHRASE",
+                                }
+                            },
+                        ]
                     }
                 },
             ]
@@ -199,8 +258,20 @@ def test_simple_query_correct_or():
     assert result == {
         "bool": {
             "should": [
-                {"match": {"name.family": "Donald"}},
-                {"match": {"name.family": "Chalmers"}},
+                {
+                    "simple_query_string": {
+                        "query": '"Donald"',
+                        "fields": ["name.family"],
+                        "flags": "PHRASE",
+                    }
+                },
+                {
+                    "simple_query_string": {
+                        "query": '"Chalmers"',
+                        "fields": ["name.family"],
+                        "flags": "PHRASE",
+                    }
+                },
             ]
         }
     }
@@ -213,8 +284,20 @@ def test_simple_query_correct_and():
     assert result == {
         "bool": {
             "must": [
-                {"simple_query_string": {"fields": ["name.family"], "query": "(Donald)*",}},
-                {"simple_query_string": {"fields": ["name.family"], "query": "(Chalmers)*",}},
+                {
+                    "simple_query_string": {
+                        "fields": ["name.family"],
+                        "query": '"Donald"',
+                        "flags": "PHRASE",
+                    }
+                },
+                {
+                    "simple_query_string": {
+                        "fields": ["name.family"],
+                        "query": '"Chalmers"',
+                        "flags": "PHRASE",
+                    }
+                },
             ]
         }
     }
