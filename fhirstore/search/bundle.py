@@ -22,12 +22,13 @@ class Bundle:
             self.content["tag"] = {"code": "SUBSETTED"}
 
     def complete(self, new_bundle, formatting_args):
-        if new_bundle.content["resource_type"]=="OperationOutcome":
+        if new_bundle.content["resource_type"] == "OperationOutcome":
             self.content = new_bundle.content
         else:
             self.content["total"] += new_bundle.content["total"]
             if not formatting_args["is_summary_count"]:
                 self.content["entry"].extend(new_bundle.content["entry"])
+
     def append(self, included_hits, formatting_args):
         if formatting_args["include"] and "hits" in included_hits:
             for h in included_hits["hits"]["hits"]:
