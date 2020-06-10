@@ -357,7 +357,6 @@ class FHIRStore:
             rev_args_inner = SearchArguments()
             rev_args_inner.parse(rev_chain.has_args[0], rev_chain.resources_type[0])
             chained_bundle_inner = self.search(rev_args_inner)
-
             for item in chained_bundle_inner.content["entry"]:
                 inner_ids.append(
                     item["resource"][rev_chain.references[0]]["reference"].split(
@@ -365,7 +364,14 @@ class FHIRStore:
                     )[1]
                 )
             search_args.core_args["id"] = inner_ids
-
+            if search_args.core_args["id"] == []:
+                bundle = Bundle()
+                bundle.fill_error(
+                    severity="warning",
+                    code="not-found",
+                    details=f"No {rev_chain.resources_type[0]} matching search criteria",
+                )
+                return bundle
         bundle = self.search(search_args)
 
         ## handle _include
