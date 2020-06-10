@@ -73,7 +73,7 @@ class ReverseChain:
             self.has_args = []
             if len(self.resources_type) == 1:
                 self.has_args.append(
-                    {"_elements": [f"{self.references[0]}.reference"], self.fields[0]: []}
+                    {"_elements": [f"{self.references[0]}.reference"], self.fields[0]: self.value}
                 )
             else:
                 self.has_args.append(
