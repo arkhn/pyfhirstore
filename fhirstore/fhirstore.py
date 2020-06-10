@@ -365,6 +365,14 @@ class FHIRStore:
                     )[1]
                 )
             search_args.core_args["id"] = inner_ids
+            if search_args.core_args["id"] == []:
+                bundle = Bundle()
+                bundle.fill_error(
+                    severity="warning",
+                    code="not-found",
+                    details=f"No {rev_chain.resources_type[0]} matching search criteria",
+                )
+                return bundle
 
         bundle = self.search(search_args)
 
