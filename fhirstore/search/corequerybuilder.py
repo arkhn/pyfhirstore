@@ -8,6 +8,24 @@ from fhirstore.search import SearchArguments, ReverseChain
 
 number_prefix_matching = {"gt": "gt", "ge": "gte", "lt": "lt", "le": "lte"}
 
+# TODO handle sa|eb|ap|ne
+def is_numeric_type(argument):
+    is_numeric = re.search(
+        r"^([0]|[-+]?[1-9][0-9]*)$|^(-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?)$|^(([0-9]([0-9]([0-9][1-9]|[1-9]0)|[1-9]00)|[1-9]000)(-(0[1-9]|1[0-2])(-(0[1-9]|[1-2][0-9]|3[0-1])(T([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\.[0-9]+)?(Z|(\+|-)((0[0-9]|1[0-3]):[0-5][0-9]|14:00)))?)?)?)$",
+        argument,
+    )
+    return is_numeric
+
+
+def check_prefix(value):
+    num_prefix = re.search(r"^(ne|eq|gt|lt|ge|le)(.*)$", value)
+    if num_prefix and is_numeric_type(num_prefix.group(2)):
+        prefix = num_prefix.group(1)
+        argument = num_prefix.group(2)
+        return prefix, argument
+    else:
+        return None, value
+
 
 def build_element_query(key, value):
     """Translate and parse search parameters (key, value) to an
@@ -19,9 +37,7 @@ def build_element_query(key, value):
         element_query["match"][key] = value
 
     else:
-        numeric_prefix = re.search(r"^(gt|lt|ge|le)([0-9].*)$", value)
-        eq_prefix = re.search(r"^(eq)([0-9].*)$", value)
-        special_prefix = re.search(r"^(ne|sa|eb|ap)([0-9].*)$", value)
+        prefix, value = check_prefix(value)
         pipe_suffix = re.search(r"(.*)\|(.*)", value)
 
         string_modif = re.search(
@@ -66,16 +82,13 @@ def build_element_query(key, value):
                 ]
                 element_query["simple_query_string"]["flags"] = "PHRASE"
 
-        elif numeric_prefix:
-            element_query["range"][key] = {
-                number_prefix_matching[numeric_prefix.group(1)]: numeric_prefix.group(2)
-            }
-        elif eq_prefix:
-            element_query["match"][key] = eq_prefix.group(2)
-
-        elif special_prefix:
-            if special_prefix.group(1) == "ne":
-                element_query["simple_query_string"]["query"] = f"-{special_prefix.group(2)}"
+        elif prefix:
+            if prefix in number_prefix_matching:
+                element_query["range"][key] = {number_prefix_matching[prefix]: value}
+            elif prefix == "eq":
+                element_query["match"][key] = value
+            elif prefix == "ne":
+                element_query["simple_query_string"]["query"] = f"-{value}"
                 element_query["simple_query_string"]["fields"] = [key]
 
         elif pipe_suffix:
