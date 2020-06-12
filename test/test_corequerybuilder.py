@@ -2,7 +2,7 @@ import pytest
 import json
 from pytest import raises
 
-from fhirstore.search import build_simple_query, build_core_query, build_element_query
+from fhirstore.search import build_simple_query, build_core_query, build_element_query, check_prefix, is_numeric_type
 from collections.abc import Mapping
 from fhirstore import FHIRStore, NotFoundError
 
@@ -11,6 +11,48 @@ from fhirstore import FHIRStore, NotFoundError
 ## TEST BUILD SIMPLE QUERY
 ##
 ######
+
+def test_is_numeric_type():
+    integers = ["1", "-1", "123456789"]
+    decimals = ["1.1", "-1.1", "0.1", "1e2", "1e-3"]
+
+    datetimes = ["2017-01-01T00:00:00Z", "2015-02-07T13:28:17.239+02:00", "2015-02-07T13:28:17-05:00","2018", "1973-06","1905-08-23"]
+    not_numeric = ["patient", "in-progress", "012312432",".45", "cdcd3132-2eb8-496c-ae88-1fabdaea3efa", "0vrvbb01154wnqyot495mp", "ckb0vrvbb01154wnqyot495mp"]
+
+    for item in integers:
+        assert is_numeric_type(item)
+    for item in decimals:
+        assert is_numeric_type(item)
+    for item in datetimes:
+        assert is_numeric_type(item)
+    for item in not_numeric:
+        assert is_numeric_type(item) is None
+
+def test_check_prefix():
+
+    integers = ["eq1", "eq-1", "eq123456789"]
+    decimals = ["eq1.1", "eq-1.1", "eq0.1", "eq1e2", "eq1e-3"]
+    datetimes = ["eq2017-01-01T00:00:00Z", "eq2015-02-07T13:28:17.239+02:00", "eq2015-02-07T13:28:17-05:00","eq2018", "eq1973-06","eq1905-08-23",]
+    not_numeric = ["eqpatient", "eqin-progress", "eq012312432", "eq.45", "eq0vrvbb01154wnqyot495mp","eqb6azyyd01384knzanc76mja","s010101"]
+    special_suffixes = ["le1974-12-25"]
+
+    for item in integers:
+        suffix, argument = check_prefix(item)
+        assert suffix== "eq"
+    for item in decimals:
+        suffix, argument = check_prefix(item)
+        assert suffix=="eq"
+
+    for item in datetimes:
+        suffix, argument = check_prefix(item)
+        assert suffix=="eq"
+    for item in not_numeric:
+        suffix, argument = check_prefix(item)
+        assert suffix==None
+    for item in special_suffixes:
+        suffix, argument = check_prefix(item)
+        assert suffix=="le"
+        assert argument=="1974-12-25"
 
 
 def test_basic_int_query():
