@@ -326,7 +326,6 @@ class FHIRStore:
         """
         search_args = SearchArguments()
         search_args.parse(args, resource_type)
-
         # handle _has
         rev_chain = search_args.reverse_chain
         if rev_chain and rev_chain.is_queried:
@@ -364,8 +363,7 @@ class FHIRStore:
                         sep="/", maxsplit=1
                     )[1]
                 )
-            search_args.core_args["id"] = inner_ids
-            if search_args.core_args["id"] == []:
+            if inner_ids == []:
                 bundle = Bundle()
                 bundle.fill_error(
                     severity="warning",
@@ -373,6 +371,8 @@ class FHIRStore:
                     details=f"No {rev_chain.resources_type[0]} matching search criteria",
                 )
                 return bundle
+
+            search_args.core_args["multiple"]= {"id" : inner_ids}
 
         bundle = self.search(search_args)
 
