@@ -313,7 +313,6 @@ class FHIRStore:
 
             # .lower() is used to fix the fact that monstache changes resourceTypes to
             # all lower case
-            print(query)
             hits = self.es.search(
                 body=query, index=f"fhirstore.{search_args.resource_type.lower()}"
             )
@@ -327,7 +326,6 @@ class FHIRStore:
         """
         search_args = SearchArguments()
         search_args.parse(args, resource_type)
-        print(search_args.core_args)
         # handle _has
         rev_chain = search_args.reverse_chain
         if rev_chain and rev_chain.is_queried:
