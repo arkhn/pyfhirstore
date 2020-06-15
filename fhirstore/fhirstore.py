@@ -402,6 +402,7 @@ class FHIRStore:
                             },
                             index=f"fhirstore.{included_resource.lower()}",
                         )
+                        bundle.append(included_hits, search_args.formatting_args)
                     except KeyError as e:
                         logging.warning(f"Attribute: {e} is empty")
                     except elasticsearch.exceptions.NotFoundError as e:
@@ -409,7 +410,7 @@ class FHIRStore:
                             f"{e.info['error']['index']} is not indexed in the database yet."
                         )
 
-                        bundle.append(included_hits, search_args.formatting_args)
+                        
 
         return bundle
 
