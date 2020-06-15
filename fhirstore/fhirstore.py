@@ -397,7 +397,7 @@ class FHIRStore:
                         included_hits = self.es.search(
                             body={
                                 "query": {
-                                    "simple_query_string": {"query": included_id, "fields": ["id"],}
+                                    "simple_query_string": {"query": f'"{included_id}"', "fields": ["id"],'flags': 'PHRASE'}
                                 }
                             },
                             index=f"fhirstore.{included_resource.lower()}",
@@ -409,7 +409,7 @@ class FHIRStore:
                             f"{e.info['error']['index']} is not indexed in the database yet."
                         )
 
-            bundle.append(included_hits, search_args.formatting_args)
+                        bundle.append(included_hits, search_args.formatting_args)
 
         return bundle
 
