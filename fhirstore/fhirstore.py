@@ -382,16 +382,16 @@ class FHIRStore:
         ):
             included_hits = {}
             for attribute in search_args.formatting_args["include"]:
-                include_refs = {} 
+                include_refs = defaultdict(set)
                 try:
                     for item in bundle.content["entry"]:
                         if item["search"]["mode"] == "match":
-                            ref_to_parse = item["resource"][attribute]["reference"].split(sep="/", maxsplit=1)
-                            if ref_to_parse[0] not in include_refs :
-                               include_refs[ref_to_parse[0]] = set()
+                            ref_to_parse = item["resource"][attribute]["reference"].split(
+                                sep="/", maxsplit=1
+                            )
                             include_refs[ref_to_parse[0]].add(ref_to_parse[1])
-                    for included_resource in include_refs.keys():
-                        include_core_query = build_core_query({"multiple":{"id": include_refs[included_resource]}})
+                    for included_resource, included_ids in include_refs.items():
+                        include_core_query = build_core_query({"multiple": {"id": included_ids}})
                         included_hits = self.es.search(
                             body={
                                 "min_score": 0.01,
