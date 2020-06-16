@@ -38,8 +38,11 @@ def insert_medicationrequest(es_client):
         with open("test/fixtures/medicationrequest-example.json") as i:
             medicationrequest_1 = json.load(i)
             es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_1)
+        with open("test/fixtures/medicationrequest-example2.json") as j:
+            medicationrequest_2 = json.load(j)
+            es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_2)
 
-    while es_client.count(index="fhirstore.medicationrequest")["count"] < 1:
+    while es_client.count(index="fhirstore.medicationrequest")["count"] < 2:
         sleep(5 / 10000)
     return es_client
 
@@ -62,7 +65,7 @@ def test_search_medicationrequest(store: FHIRStore, insert_medicationrequest):
     """Check that medicationrequest was inserted properly
     """
     result = store.comprehensive_search("MedicationRequest", {})
-    assert result.content["total"] == 1
+    assert result.content["total"] == 2
 
 
 def test_parse_comma_simple():
@@ -333,13 +336,19 @@ def test_sort_score_asc():
 def test_sort_params():
     search_args = SearchArguments()
     search_args.parse(ImmutableMultiDict([("_sort", "-birthDate,active")]), "Patient")
-    assert search_args.formatting_args["sort"] == [{"birthDate": {"order": "desc"}}, "active"]
+    assert search_args.formatting_args["sort"] == [
+        {"birthDate": {"order": "desc"}},
+        "active",
+    ]
 
 
 def test_sort_params_score():
     search_args = SearchArguments()
     search_args.parse(ImmutableMultiDict([("_sort", "-birthDate,_score")]), "Patient")
-    assert search_args.formatting_args["sort"] == [{"birthDate": {"order": "desc"}}, "_score"]
+    assert search_args.formatting_args["sort"] == [
+        {"birthDate": {"order": "desc"}},
+        "_score",
+    ]
 
 
 def test_sort_params_desc_and_score_asc():

@@ -310,7 +310,6 @@ class FHIRStore:
 
             if search_args.formatting_args["elements"]:
                 query["_source"] = search_args.formatting_args["elements"]
-
             # .lower() is used to fix the fact that monstache changes resourceTypes to
             # all lower case
             hits = self.es.search(
@@ -372,7 +371,7 @@ class FHIRStore:
                 )
                 return bundle
 
-            search_args.core_args["multiple"]= {"id" : inner_ids}
+            search_args.core_args["multiple"] = {"id": inner_ids}
 
         bundle = self.search(search_args)
 
@@ -382,34 +381,33 @@ class FHIRStore:
             and not search_args.formatting_args["is_summary_count"]
         ):
             included_hits = {}
-            for item in bundle.content["entry"]:
-                # only go over items that are not the result of an inclusion
-                if item["search"]["mode"] == "include":
-                    continue
-                # For each attribute to include
-                for attribute in search_args.formatting_args["include"]:
-                    # split the reference attribute "Practioner/123" into a
-                    # resource "Practioner" and an id "123"
-                    try:
-                        included_resource, included_id = item["resource"][attribute][
-                            "reference"
-                        ].split(sep="/", maxsplit=1)
+            for attribute in search_args.formatting_args["include"]:
+                include_refs = defaultdict(set)
+                try:
+                    for item in bundle.content["entry"]:
+                        if item["search"]["mode"] == "match":
+                            ref_to_parse = item["resource"][attribute]["reference"].split(
+                                sep="/", maxsplit=1
+                            )
+                            include_refs[ref_to_parse[0]].add(ref_to_parse[1])
+                    for included_resource, included_ids in include_refs.items():
+                        include_core_query = build_core_query({"multiple": {"id": included_ids}})
                         included_hits = self.es.search(
                             body={
-                                "query": {
-                                    "simple_query_string": {"query": included_id, "fields": ["id"],}
-                                }
+                                "min_score": 0.01,
+                                "from": search_args.meta_args["offset"],
+                                "size": search_args.meta_args["result_size"],
+                                "query": include_core_query,
                             },
                             index=f"fhirstore.{included_resource.lower()}",
                         )
-                    except KeyError as e:
-                        logging.warning(f"Attribute: {e} is empty")
-                    except elasticsearch.exceptions.NotFoundError as e:
-                        logging.warning(
-                            f"{e.info['error']['index']} is not indexed in the database yet."
-                        )
-
-            bundle.append(included_hits, search_args.formatting_args)
+                        bundle.append(included_hits, search_args.formatting_args)
+                except KeyError as e:
+                    logging.warning(f"Attribute: {e} is empty")
+                except elasticsearch.exceptions.NotFoundError as e:
+                    logging.warning(
+                        f"{e.info['error']['index']} is not indexed in the database yet."
+                    )
 
         return bundle
 
