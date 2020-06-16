@@ -381,21 +381,17 @@ class FHIRStore:
             and not search_args.formatting_args["is_summary_count"]
         ):
             included_hits = {}
-            include_refs = {} 
             for attribute in search_args.formatting_args["include"]:
+                include_refs = {} 
                 try:
-                    
-                    include_refs[attribute] = {"included_resources": [], "included_ids": []}
                     for item in bundle.content["entry"]:
                         if item["search"]["mode"] == "match":
                             ref_to_parse = item["resource"][attribute]["reference"].split(sep="/", maxsplit=1)
-                            include_refs[attribute]["included_resources"].append(ref_to_parse[0])
-                            include_refs[attribute]["included_ids"].append(ref_to_parse[1])
-                    
-                    unique_resources = list(set(include_refs[attribute]["included_resources"]))
-                    unique_ids = list(set(include_refs[attribute]["included_ids"]))
-                    for included_resource in unique_resources:
-                        include_core_query = build_core_query({"multiple":{"id": unique_ids}})
+                            if ref_to_parse[0] not in include_refs :
+                               include_refs[ref_to_parse[0]] = set()
+                            include_refs[ref_to_parse[0]].add(ref_to_parse[1])
+                    for included_resource in include_refs.keys():
+                        include_core_query = build_core_query({"multiple":{"id": include_refs[included_resource]}})
                         included_hits = self.es.search(
                             body={
                                 "min_score": 0.01,
