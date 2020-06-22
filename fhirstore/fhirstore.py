@@ -339,7 +339,7 @@ class FHIRStore:
                 rev_args_outer.parse(rev_chain.has_args[1], rev_chain.resources_type[1])
                 chained_bundle_outer = self.search(rev_args_outer)
 
-                inner_ids.extend(
+                outer_ids.extend(
                     get_reference_ids_from_bundle(chained_bundle_outer, rev_chain.references[1])
                 )
 
