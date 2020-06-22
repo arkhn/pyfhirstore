@@ -13,7 +13,7 @@ from jsonschema import validate
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
 from fhirstore.search import SearchArguments, build_core_query, Bundle
-from fhirstore.utils import get_from_path, get_reference_ids_from_bundle
+from fhirstore.utils import get_reference_ids_from_bundle
 
 
 class NotFoundError(Exception):
