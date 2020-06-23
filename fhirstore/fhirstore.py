@@ -13,6 +13,7 @@ from jsonschema import validate
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
 from fhirstore.search import SearchArguments, build_core_query, Bundle
+from fhirstore.utils import get_reference_ids_from_bundle
 
 
 class NotFoundError(Exception):
@@ -338,12 +339,9 @@ class FHIRStore:
                 rev_args_outer.parse(rev_chain.has_args[1], rev_chain.resources_type[1])
                 chained_bundle_outer = self.search(rev_args_outer)
 
-                for item in chained_bundle_outer.content["entry"]:
-                    outer_ids.append(
-                        item["resource"][rev_chain.references[1]]["reference"].split(
-                            sep="/", maxsplit=1
-                        )[1]
-                    )
+                outer_ids.extend(
+                    get_reference_ids_from_bundle(chained_bundle_outer, rev_chain.references[1])
+                )
 
                 # fill the inner chain with the ids from the previous search
                 rev_chain.has_args[0][rev_chain.fields[0]] = outer_ids
@@ -356,12 +354,10 @@ class FHIRStore:
             rev_args_inner.parse(rev_chain.has_args[0], rev_chain.resources_type[0])
             chained_bundle_inner = self.search(rev_args_inner)
 
-            for item in chained_bundle_inner.content["entry"]:
-                inner_ids.append(
-                    item["resource"][rev_chain.references[0]]["reference"].split(
-                        sep="/", maxsplit=1
-                    )[1]
-                )
+            inner_ids.extend(
+                get_reference_ids_from_bundle(chained_bundle_inner, rev_chain.references[0])
+            )
+
             if inner_ids == []:
                 bundle = Bundle()
                 bundle.fill_error(
