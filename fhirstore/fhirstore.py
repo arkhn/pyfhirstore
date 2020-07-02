@@ -1,19 +1,22 @@
 import sys
-import re
 import logging
 import elasticsearch
 
-from collections import defaultdict
-from werkzeug.datastructures import ImmutableMultiDict
-from pymongo import MongoClient, ReturnDocument, ASCENDING
+from pymongo import MongoClient, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 from jsonschema import validate
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
+<<<<<<< HEAD
 from fhirstore.search import SearchArguments, build_core_query, Bundle
 from fhirstore.utils import get_reference_ids_from_bundle
+=======
+from fhirstore.search_engine import ElasticSearchEngine, create_search_engine
+
+from fhirpath.search import SearchContext, Search
+>>>>>>> Start integrating fhirpath
 
 
 class NotFoundError(Exception):
@@ -45,22 +48,47 @@ class FHIRStore:
         self.parser = SchemaParser()
         self.resources = resources
 
+        if self.es and len(self.es.transport.hosts) > 0:
+            self.search_engine: ElasticSearchEngine = create_search_engine(self.es)
+        else:
+            logging.warning("No elasticsearch client provided, search features are disabled")
+
     def reset(self):
         """
         Drops all collections currently in the database.
         """
         for collection in self.db.list_collection_names():
             self.db.drop_collection(collection)
+        self.es.indices.delete("_all")
         self.resources = {}
 
     def bootstrap(self, depth=3, resource=None, show_progress=True):
         """
         Parses the FHIR json-schema and create the collections according to it.
         """
+        # Bootstrap elastic indices
+        es_mappings = self.search_engine.mappings.items()
+        if show_progress:
+            tqdm.write("\n", end="")
+            es_mappings = tqdm(
+                es_mappings, file=sys.stdout, desc="Bootstrapping elasticsearch indices..."
+            )
+        for resource_type, elastic_mapping in es_mappings:
+            self.es.indices.create(
+                f"fhirstore.{resource_type.lower()}",
+                body={"mappings": {"properties": elastic_mapping}},
+            )
+
+        # Bootstrap mongoDB collections
         resources = self.parser.parse(depth=depth, resource=resource)
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
+            resources = tqdm(
+                resources,
+                file=sys.stdout,
+                desc="Bootstrapping collections...",
+                total=len(es_mappings),
+            )
         for resource_name, schema in resources:
             self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
             # Add unique constraint on id
@@ -268,7 +296,7 @@ class FHIRStore:
             raise Exception(f"missing schema for resource {resource}")
         validate(instance=resource, schema=schema)
 
-    def search(self, search_args: SearchArguments):
+    def search(self, resource_type, query_string=None, params=None):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -414,7 +442,7 @@ class FHIRStore:
         Args:
             - bundle: the fhir bundle containing the resources.
         """
-        if not "resourceType" in bundle or bundle["resourceType"] != "Bundle":
+        if "resourceType" not in bundle or bundle["resourceType"] != "Bundle":
             raise Exception("input must be a FHIR Bundle resource")
 
         for entry in bundle["entry"]:
