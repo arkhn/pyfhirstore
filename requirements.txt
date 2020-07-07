@@ -6,4 +6,4 @@ tqdm==4.36.1
 werkzeug==1.0.1
 
 fhirpath_helpers @ git+https://github.com/nazrulworld/fhirpath_helpers@0f0c5001ef6060e6bf319e6a7fc6f09676712267#egg=fhirpath_helpers
-fhirpath @ git+https://github.com/arkhn/fhirpath@5d4046a5e2da8b366b7a06e6f7b6979d8b1301f4#egg=fhirpath
+fhirpath @ git+https://github.com/arkhn/fhirpath@669d05b33e1196e67b39c1b475a145da45a74cae#egg=fhirpath

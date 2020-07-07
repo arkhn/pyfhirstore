@@ -67,17 +67,7 @@ class FHIRStore:
         Parses the FHIR json-schema and create the collections according to it.
         """
         # Bootstrap elastic indices
-        es_mappings = self.search_engine.mappings.items()
-        if show_progress:
-            tqdm.write("\n", end="")
-            es_mappings = tqdm(
-                es_mappings, file=sys.stdout, desc="Bootstrapping elasticsearch indices..."
-            )
-        for resource_type, elastic_mapping in es_mappings:
-            self.es.indices.create(
-                f"fhirstore.{resource_type.lower()}",
-                body={"mappings": {"properties": elastic_mapping}},
-            )
+        self.search_engine.create_es_index()
 
         # Bootstrap mongoDB collections
         resources = self.parser.parse(depth=depth, resource=resource)
@@ -87,7 +77,7 @@ class FHIRStore:
                 resources,
                 file=sys.stdout,
                 desc="Bootstrapping collections...",
-                total=len(es_mappings),
+                total=len(self.search_engine.mappings),
             )
         for resource_name, schema in resources:
             self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
@@ -119,8 +109,10 @@ class FHIRStore:
             )
 
         for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
-            self.resources[collection] = json_schema
+            self.resources[collection] = {}
+        # for collection in collections:
+        #     json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
+        #     self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
         if resource_type is None:
@@ -315,125 +307,97 @@ class FHIRStore:
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
-        self.validate_resource_type(search_args.resource_type)
+        self.validate_resource_type(resource_type)
+        search_context = SearchContext(self.search_engine, resource_type)
+        fhir_search = Search(search_context, query_string=query_string, params=params)
 
-        core_query = build_core_query(search_args.core_args)
-        bundle = Bundle()
+        return fhir_search()
 
-        if search_args.formatting_args["is_summary_count"]:
-            hits = self.es.count(
-                body={"query": core_query}, index=f"fhirstore.{search_args.resource_type.lower()}",
-            )
-            bundle.fill(hits, search_args.formatting_args)
+    # def comprehensive_search(self, resource_type: str, args: ImmutableMultiDict):
+    #     """ To deal with keywords : _include, _revinclude, _has
+    #     """
+    #     search_args = SearchArguments()
+    #     search_args.parse(args, resource_type)
+    #     # handle _has
+    #     rev_chain = search_args.reverse_chain
+    #     if rev_chain and rev_chain.is_queried:
+    #         inner_ids = []
+    #         # If there is a double _has chain
+    #         if len(rev_chain.has_args) == 2:
+    #             outer_ids = []
+    #             rev_args_outer = SearchArguments()
 
-        else:
-            query = {
-                "min_score": 0.01,
-                "from": search_args.meta_args["offset"],
-                "size": search_args.meta_args["result_size"],
-                "query": core_query,
-            }
+    #             # parse the outer chain and search the store
+    #             rev_args_outer.parse(rev_chain.has_args[1], rev_chain.resources_type[1])
+    #             chained_bundle_outer = self.search(rev_args_outer)
 
-            if search_args.formatting_args["sort"]:
-                query["sort"] = search_args.formatting_args["sort"]
+    #             outer_ids.extend(
+    #                 get_reference_ids_from_bundle(chained_bundle_outer, rev_chain.references[1])
+    #             )
 
-            if search_args.formatting_args["elements"]:
-                query["_source"] = search_args.formatting_args["elements"]
-            # .lower() is used to fix the fact that monstache changes resourceTypes to
-            # all lower case
-            hits = self.es.search(
-                body=query, index=f"fhirstore.{search_args.resource_type.lower()}"
-            )
+    #             # fill the inner chain with the ids from the previous search
+    #             rev_chain.has_args[0][rev_chain.fields[0]] = outer_ids
 
-            bundle.fill(hits, search_args.formatting_args)
+    #         # If there is a single _has chain, fill it with the value
+    #         elif len(rev_chain.has_args) == 1:
+    #             rev_chain.has_args[0][rev_chain.fields[0]] = rev_chain.value
 
-        return bundle
+    #         rev_args_inner = SearchArguments()
+    #         rev_args_inner.parse(rev_chain.has_args[0], rev_chain.resources_type[0])
+    #         chained_bundle_inner = self.search(rev_args_inner)
 
-    def comprehensive_search(self, resource_type: str, args: ImmutableMultiDict):
-        """ To deal with keywords : _include, _revinclude, _has
-        """
-        search_args = SearchArguments()
-        search_args.parse(args, resource_type)
-        # handle _has
-        rev_chain = search_args.reverse_chain
-        if rev_chain and rev_chain.is_queried:
-            inner_ids = []
-            # If there is a double _has chain
-            if len(rev_chain.has_args) == 2:
-                outer_ids = []
-                rev_args_outer = SearchArguments()
+    #         inner_ids.extend(
+    #             get_reference_ids_from_bundle(chained_bundle_inner, rev_chain.references[0])
+    #         )
 
-                # parse the outer chain and search the store
-                rev_args_outer.parse(rev_chain.has_args[1], rev_chain.resources_type[1])
-                chained_bundle_outer = self.search(rev_args_outer)
+    #         if inner_ids == []:
+    #             bundle = Bundle()
+    #             bundle.fill_error(
+    #                 severity="warning",
+    #                 code="not-found",
+    #                 details=f"No {rev_chain.resources_type[0]} matching search criteria",
+    #             )
+    #             return bundle
 
-                outer_ids.extend(
-                    get_reference_ids_from_bundle(chained_bundle_outer, rev_chain.references[1])
-                )
+    #         search_args.core_args["multiple"] = {"id": inner_ids}
 
-                # fill the inner chain with the ids from the previous search
-                rev_chain.has_args[0][rev_chain.fields[0]] = outer_ids
+    #     bundle = self.search(search_args)
 
-            # If there is a single _has chain, fill it with the value
-            elif len(rev_chain.has_args) == 1:
-                rev_chain.has_args[0][rev_chain.fields[0]] = rev_chain.value
+    #     ## handle _include
+    #     if (
+    #         search_args.formatting_args["include"]
+    #         and not search_args.formatting_args["is_summary_count"]
+    #     ):
+    #         included_hits = {}
+    #         for attribute in search_args.formatting_args["include"]:
+    #             include_refs = defaultdict(set)
+    #             try:
+    #                 for item in bundle.content["entry"]:
+    #                     if item["search"]["mode"] == "match":
+    #                         ref_to_parse = item["resource"][attribute]["reference"].split(
+    #                             sep="/", maxsplit=1
+    #                         )
+    #                         include_refs[ref_to_parse[0]].add(ref_to_parse[1])
+    #                 for included_resource, included_ids in include_refs.items():
+    #                     include_core_query = build_core_query({"multiple": {"id": included_ids}})
+    #                     included_hits = self.es.search(
+    #                         body={
+    #                             "min_score": 0.01,
+    #                             "from": search_args.meta_args["offset"],
+    #                             "size": search_args.meta_args["result_size"],
+    #                             "query": include_core_query,
+    #                         },
+    #                         index=f"fhirstore.{included_resource.lower()}",
+    #                     )
+    #                     bundle.append(included_hits, search_args.formatting_args)
+    #             except KeyError as e:
+    #                 logging.warning(f"Attribute: {e} is empty")
+    #             except elasticsearch.exceptions.NotFoundError as e:
+    #                 logging.warning(
+    #                     f"{e.info['error']['index']} is not indexed in the database yet."
+    #                 )
 
-            rev_args_inner = SearchArguments()
-            rev_args_inner.parse(rev_chain.has_args[0], rev_chain.resources_type[0])
-            chained_bundle_inner = self.search(rev_args_inner)
-
-            inner_ids.extend(
-                get_reference_ids_from_bundle(chained_bundle_inner, rev_chain.references[0])
-            )
-
-            if inner_ids == []:
-                bundle = Bundle()
-                bundle.fill_error(
-                    severity="warning",
-                    code="not-found",
-                    details=f"No {rev_chain.resources_type[0]} matching search criteria",
-                )
-                return bundle
-
-            search_args.core_args["multiple"] = {"id": inner_ids}
-
-        bundle = self.search(search_args)
-
-        ## handle _include
-        if (
-            search_args.formatting_args["include"]
-            and not search_args.formatting_args["is_summary_count"]
-        ):
-            included_hits = {}
-            for attribute in search_args.formatting_args["include"]:
-                include_refs = defaultdict(set)
-                try:
-                    for item in bundle.content["entry"]:
-                        if item["search"]["mode"] == "match":
-                            ref_to_parse = item["resource"][attribute]["reference"].split(
-                                sep="/", maxsplit=1
-                            )
-                            include_refs[ref_to_parse[0]].add(ref_to_parse[1])
-                    for included_resource, included_ids in include_refs.items():
-                        include_core_query = build_core_query({"multiple": {"id": included_ids}})
-                        included_hits = self.es.search(
-                            body={
-                                "min_score": 0.01,
-                                "from": search_args.meta_args["offset"],
-                                "size": search_args.meta_args["result_size"],
-                                "query": include_core_query,
-                            },
-                            index=f"fhirstore.{included_resource.lower()}",
-                        )
-                        bundle.append(included_hits, search_args.formatting_args)
-                except KeyError as e:
-                    logging.warning(f"Attribute: {e} is empty")
-                except elasticsearch.exceptions.NotFoundError as e:
-                    logging.warning(
-                        f"{e.info['error']['index']} is not indexed in the database yet."
-                    )
-
-        return bundle
+    #     return bundle
 
     def upload_bundle(self, bundle):
         """

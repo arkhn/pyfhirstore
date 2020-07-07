@@ -21,7 +21,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/arkhn/pyfhirstore/",
     packages=setuptools.find_packages(),
-    package_data={"fhirstore": ["schema/fhir.schema.json"],},
+    package_data={"fhirstore": ["schema/fhir.schema.json"]},
     install_requires=requirements,
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -1,5 +1,4 @@
 import os
-import time
 import json
 from timeit import default_timer as timer
 from pymongo import MongoClient
@@ -7,13 +6,22 @@ from elasticsearch import Elasticsearch
 
 from fhirstore import FHIRStore
 
+[
+    {
+        "type": "Practitioner",
+        "identifier": {
+            "system": "http:\/\/terminology.arkhn.org\/ck8oojkbu27044kp4od9c3pmz\/ck8oojkec27414kp4n4dxkrw5",
+            "value": "161765",
+        },
+        "reference": "25d1333d-c125-4fc4-8668-8f68382eea11",
+    }
+]
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     client = MongoClient(username="arkhn", password="SuperSecurePassword2019")
 
     client_es = Elasticsearch(
-            ['http://localhost:9200'],
-            http_auth=("elastic", "SuperSecurePassword2019")
+        ["http://localhost:9200"], http_auth=("elastic", "SuperSecurePassword2019")
     )
     # uncomment the next 2 following line if you wish to activate
     # the replication mode of mongo (required by monstache)
@@ -26,6 +34,17 @@ if __name__ == '__main__':
     # uncomment the following line if mongo already has initialised
     # collections and you don't want to bootstrap them all
     # store.resume()
+    res = store.db["Practitioner"].find_one(
+        {
+            "identifier.value": "161765",
+            "identifier.system": "http://terminology.arkhn.org/ck8oojkbu27044kp4od9c3pmz/ck8oojkec27414kp4n4dxkrw5",
+        }
+    )
+    print(res)
+    exit(0)
+    res = [r for r in res]
+    print(res[0] if len(res) > 0 else "", len(res))
+    exit(0)
 
     # reset collections (comment if you used `store.resume()`)
     print("Dropping collections...")
@@ -44,8 +63,7 @@ if __name__ == '__main__':
     # creating document
     print("Inserting documents...")
     json_folder_path = os.path.join(os.getcwd(), "test/fixtures")
-    json_files = [x for x in os.listdir(
-        json_folder_path) if x.endswith(".json")]
+    json_files = [x for x in os.listdir(json_folder_path) if x.endswith(".json")]
     total = 0
     for json_file in json_files:
         json_file_path = os.path.join(json_folder_path, json_file)
@@ -59,7 +77,7 @@ if __name__ == '__main__':
                 print(e)
             end = timer()
             print(end - start, "seconds")
-            total += (end-start)
+            total += end - start
     print(f"Inserted {len(json_files)} documents in {total} seconds")
     # srch = store.search(resource='patient',params="male")
     # print(srch)

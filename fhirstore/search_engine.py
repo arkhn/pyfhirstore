@@ -13,7 +13,7 @@ class ElasticSearchEngine(BaseEngine):
         self.mappings = generate_mappings(FHIR_VERSION.R4.name)
 
     def calculate_field_index_name(self, resource_type):
-        return None
+        return resource_type
 
     def current_url(self):
         """
@@ -23,9 +23,10 @@ class ElasticSearchEngine(BaseEngine):
 
         return URL("https://dev.arkhn.com")
 
-    def get_index_name(self, resource_type: str):
+    def get_index_name(self):
         """ """
-        return f"fhirstore.{resource_type.lower()}"
+        # return f"fhirstore.{resource_type.lower()}"
+        return "fhirstore"
 
     def get_mapping(self, resource_type: str, index_config=None):
         """ """
@@ -52,13 +53,46 @@ class ElasticSearchEngine(BaseEngine):
 
         compiled = self.dialect.compile(**params)
         if query_type == EngineQueryType.DML:
-            raw_result = self.connection.fetch(self.get_index_name(resource_type), compiled)
+            raw_result = self.connection.fetch(self.get_index_name(), compiled)
         elif query_type == EngineQueryType.COUNT:
-            raw_result = self.connection.count(self.get_index_name(resource_type), compiled)
+            raw_result = self.connection.count(self.get_index_name(), compiled)
         else:
             raise NotImplementedError
 
         return raw_result, field_index_name, compiled
+
+    def create_es_index(self):
+        body = {
+            "settings": {
+                "index.mapping.total_fields.limit": 10000,
+                "index.mapping.nested_fields.limit": 10000,
+                "analysis": {
+                    "analyzer": {
+                        "path_analyzer": {"tokenizer": "path_tokenizer"},
+                        "fhir_reference_analyzer": {"tokenizer": "fhir_reference_tokenizer"},
+                    },
+                    "char_filter": {},
+                    "filter": {},
+                    "tokenizer": {
+                        "path_tokenizer": {"delimiter": "/", "type": "path_hierarchy"},
+                        "fhir_reference_tokenizer": {"type": "pattern", "pattern": "/"},
+                    },
+                },
+            },
+            "mappings": {
+                "dynamic": False,
+                "properties": {
+                    "elastic_index": {"index": True, "store": True, "type": "keyword"},
+                    "id": {"index": True, "store": True, "type": "keyword"},
+                },
+            },
+        }
+
+        for resource_type in self.mappings.keys():
+            body["mappings"]["properties"][resource_type] = self.get_mapping(resource_type)
+
+        self.connection._conn.indices.create(self.get_index_name(), body=body)
+        self.connection._conn.indices.refresh(index=self.get_index_name())
 
 
 def create_search_engine(es_client: elasticsearch.Elasticsearch):
