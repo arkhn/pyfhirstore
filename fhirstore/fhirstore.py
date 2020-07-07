@@ -6,17 +6,14 @@ from pymongo import MongoClient, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 from jsonschema import validate
+from fhirpath.search import SearchContext, Search
 
 from fhirstore import ARKHN_CODE_SYSTEMS
 from fhirstore.schema import SchemaParser
-<<<<<<< HEAD
-from fhirstore.search import SearchArguments, build_core_query, Bundle
-from fhirstore.utils import get_reference_ids_from_bundle
-=======
 from fhirstore.search_engine import ElasticSearchEngine, create_search_engine
 
-from fhirpath.search import SearchContext, Search
->>>>>>> Start integrating fhirpath
+# from fhirstore.search import Bundle
+# from fhirstore.utils import get_reference_ids_from_bundle
 
 
 class NotFoundError(Exception):
