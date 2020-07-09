@@ -6,17 +6,6 @@ from elasticsearch import Elasticsearch
 
 from fhirstore import FHIRStore
 
-[
-    {
-        "type": "Practitioner",
-        "identifier": {
-            "system": "http:\/\/terminology.arkhn.org\/ck8oojkbu27044kp4od9c3pmz\/ck8oojkec27414kp4n4dxkrw5",
-            "value": "161765",
-        },
-        "reference": "25d1333d-c125-4fc4-8668-8f68382eea11",
-    }
-]
-
 if __name__ == "__main__":
     client = MongoClient(username="arkhn", password="SuperSecurePassword2019")
 
