@@ -59,7 +59,7 @@ This command will write files to a `dump/` folder by default. You can specify th
 ### mongorestore
 
 ```
-mongodump --host=<host> --port=<port> --username=<username> --password=<password> --authenticationDatabase=admin --nsInclude=<path.to.restore> dump/
+mongorestore --host=<host> --port=<port> --username=<username> --password=<password> --authenticationDatabase=admin --nsInclude=<path.to.restore> dump/
 ```
 
 host and port are optional if you are working with mongo default host and port.
