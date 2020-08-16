@@ -21,6 +21,11 @@ services:
     container_name: elasticsearch
     environment:
       ELASTIC_PASSWORD: SuperSecurePassword2019
+      http.port: 9200
+      http.cors.enabled: "true"
+      http.cors.allow-origin: "*"
+      http.cors.allow-headers: X-Requested-With,X-Auth-Token,Content-Type,Content-Length,Authorization
+      http.cors.allow-credentials: "true"
     ports:
       - 9200:9200
     volumes:
@@ -28,15 +33,23 @@ services:
       - esdata:/usr/share/elasticsearch/data
 
   monstache:
-    image: rwynn/monstache:6.2.5
+    image: arkhn/monstache:6.6.0
     container_name: monstache
-    command: -f /opt/monstache.toml
+    command: -f /opt/monstache.toml -mapper-plugin-path /lib/fhirstore_map_documents.so
     restart: always
     volumes:
       - ./monstache.toml:/opt/monstache.toml
     depends_on:
       - mongo
       - elasticsearch
+
+  dejavu:
+    image: appbaseio/dejavu
+    container_name: dejavu
+    depends_on:
+      - elasticsearch
+    ports:
+      - 1358:1358
 
 volumes:
   fhirstore-db:

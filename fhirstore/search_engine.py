@@ -1,3 +1,5 @@
+from typing import Optional
+
 import elasticsearch
 
 from fhirpath.connectors import create_connection
@@ -25,7 +27,6 @@ class ElasticSearchEngine(BaseEngine):
 
     def get_index_name(self):
         """ """
-        # return f"fhirstore.{resource_type.lower()}"
         return "fhirstore"
 
     def get_mapping(self, resource_type: str, index_config=None):
@@ -39,7 +40,7 @@ class ElasticSearchEngine(BaseEngine):
         """ """
         # for now we support single from resource
         query_copy = query.clone()
-        resource_type = query.get_from()[0][1].resource_type
+        resource_type = query.get_from()[0][1].get_resource_type()
         field_index_name = self.calculate_field_index_name(resource_type)
 
         if unrestricted is False:
@@ -61,7 +62,7 @@ class ElasticSearchEngine(BaseEngine):
 
         return raw_result, field_index_name, compiled
 
-    def create_es_index(self):
+    def create_es_index(self, resource=None):
         body = {
             "settings": {
                 "index.mapping.total_fields.limit": 10000,
@@ -87,11 +88,22 @@ class ElasticSearchEngine(BaseEngine):
                 },
             },
         }
+        if resource and resource not in self.mappings.keys():
+            raise Exception(f"cannot index resource {resource}, elasticsearch mapping not found")
 
-        for resource_type in self.mappings.keys():
+        init_indices = [resource] if resource else self.mappings.keys()
+        for resource_type in init_indices:
             body["mappings"]["properties"][resource_type] = self.get_mapping(resource_type)
 
-        self.connection._conn.indices.create(self.get_index_name(), body=body)
+        # if the index already exist, update it
+        if self.connection._conn.indices.exists(self.get_index_name()):
+            self.connection._conn.indices.put_mapping(
+                body=body["mappings"], index=self.get_index_name()
+            )
+        # otherwise create it
+        else:
+            self.connection._conn.indices.create(self.get_index_name(), body=body)
+
         self.connection._conn.indices.refresh(index=self.get_index_name())
 
 

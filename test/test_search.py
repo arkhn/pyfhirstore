@@ -7,27 +7,26 @@ from fhirstore import FHIRStore, NotFoundError
 from collections.abc import Mapping
 from werkzeug.datastructures import ImmutableMultiDict
 
-# For now, this class assumes an already existing store exists
+# These tests assumes an already existing store exists
 # (store.bootstrap was run)
 
 
 @pytest.fixture(scope="module")
 def insert_patient(es_client):
-    if not es_client.indices.exists("fhirstore.patient"):
-        with open("test/fixtures/patient-example.json") as f:
-            patient_1 = json.load(f)
-            es_client.index(index="fhirstore.patient", body=patient_1)
+    with open("test/fixtures/patient-example.json") as f:
+        patient_1 = json.load(f)
+        es_client.index(index="fhirstore", body={"Patient": patient_1})
 
-        with open("test/fixtures/patient-example-2.json") as g:
-            patient_2 = json.load(g)
-            es_client.index(index="fhirstore.patient", body=patient_2)
+    with open("test/fixtures/patient-example-2.json") as g:
+        patient_2 = json.load(g)
+        es_client.index(index="fhirstore", body={"Patient": patient_2})
 
-        with open("test/fixtures/patient-example-with-extensions.json") as h:
-            patient_3 = json.load(h)
-            es_client.index(index="fhirstore.patient", body=patient_3)
+    with open("test/fixtures/patient-example-with-extensions.json") as h:
+        patient_3 = json.load(h)
+        es_client.index(index="fhirstore", body={"Patient": patient_3})
 
-    while es_client.count(index="fhirstore.patient")["count"] < 3:
-        sleep(5 / 10000)
+    while es_client.count(index="fhirstore", q="Patient.resourceType:Patient")["count"] < 3:
+        sleep(5 / 1000)
     return es_client
 
 
@@ -36,43 +35,46 @@ def insert_medicationrequest(es_client):
     if not es_client.indices.exists("fhirstore.medicationrequest"):
         with open("test/fixtures/medicationrequest-example.json") as i:
             medicationrequest_1 = json.load(i)
-            es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_1)
+            es_client.index(index="fhirstore", body={"MedicationRequest": medicationrequest_1})
         with open("test/fixtures/medicationrequest-example2.json") as j:
             medicationrequest_2 = json.load(j)
-            es_client.index(index="fhirstore.medicationrequest", body=medicationrequest_2)
+            es_client.index(index="fhirstore", body={"MedicationRequest": medicationrequest_2})
 
-    while es_client.count(index="fhirstore.medicationrequest")["count"] < 2:
-        sleep(5 / 10000)
+    while (
+        es_client.count(index="fhirstore", q="MedicationRequest.resourceType:MedicationRequest")[
+            "count"
+        ]
+        < 2
+    ):
+        sleep(5 / 1000)
     return es_client
 
 
 def test_search_output_type(store: FHIRStore, insert_patient):
     """Check that the output type is correct
     """
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([]))
+    result = store.search("Patient", params={})
     assert result.content["resource_type"] == "Bundle"
 
 
 def test_search_medicationrequest(store: FHIRStore, insert_medicationrequest):
     """Check that medicationrequest was inserted properly
     """
-    result = store.comprehensive_search("MedicationRequest", {})
+    result = store.search("MedicationRequest", params={})
     assert result.content["total"] == 2
 
 
 def test_search_no_parameters(store: FHIRStore):
     """Checks that all elements of the resource are returned
     """
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([]))
+    result = store.search("Patient", params={})
     assert len(result.content["entry"]) == 3
 
 
 def test_search_one_param_simple(store: FHIRStore):
     """Checks simple one parameter search
     """
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("identifier.value", "654321")])
-    )
+    result = store.search("Patient", params=([("identifier.value", "654321")]))
     assert len(result.content["entry"]) == 1
     assert all(
         element["resource"]["identifier"][0]["value"] == "654321"
@@ -83,9 +85,7 @@ def test_search_one_param_simple(store: FHIRStore):
 def test_search_one_param_multiple(store: FHIRStore):
     """Checks that multiple elements of one parameter are queried
     """
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("name.family", "Chalmers,Levin")])
-    )
+    result = store.search("Patient", query_string="name.family=Chalmers,Levin")
     assert len(result.content["entry"]) == 2
     assert any(
         element["resource"]["name"][0]["family"] == ("Chalmers" or "Levin")
@@ -99,9 +99,8 @@ def test_search_one_param_multiple(store: FHIRStore):
 def test_search_one_param_modifier_str_contains(store: FHIRStore):
     """Checks that "contains" string modifier works
     """
-    result = store.comprehensive_search(
-        "Patient",
-        ImmutableMultiDict([("managingOrganization.reference:contains", "Organization")]),
+    result = store.search(
+        "Patient", query_string="managingOrganization.reference:contains=Organization",
     )
     assert len(result.content["entry"]) == 3
     assert any(
@@ -118,9 +117,7 @@ def test_search_one_param_modifier_str_contains(store: FHIRStore):
 def test_search_one_param_modifier_str_exact(store: FHIRStore):
     """Checks that "exact" string modifier works
     """
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("name.family:exact", "Donald")])
-    )
+    result = store.search("Patient", query_string="name.family:exact=Donald")
     assert len(result.content["entry"]) == 1
     assert all(
         element["resource"]["name"][0]["family"] == "Donald" for element in result.content["entry"]
@@ -134,9 +131,7 @@ def test_search_one_param_modifier_str_exact(store: FHIRStore):
 def test_search_one_param_modifier_str_not(store: FHIRStore):
     """Checks that "not" string modifier works
     """
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("name.family:not", "Donald")])
-    )
+    result = store.search("Patient", query_string="name.family:not=Donald")
     assert all(
         element["resource"]["name"][0]["family"] != "Donald" for element in result.content["entry"]
     )
@@ -145,9 +140,7 @@ def test_search_one_param_modifier_str_not(store: FHIRStore):
 def test_search_two_params_and(store: FHIRStore):
     """Checks two parameter "and" search
     """
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("name.family", "Chalmers"), ("identifier.value", "12345")]),
-    )
+    result = store.search("Patient", query_string="name.family=Chalmers&identifier.value=12345",)
     assert all(
         element["resource"]["identifier"][0]["value"] == "12345"
         for element in result.content["entry"]
@@ -170,9 +163,7 @@ def test_search_two_params_and(store: FHIRStore):
 def test_search_one_params_and(store: FHIRStore):
     """Checks one parameter "and" search
     """
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("name.given", "Peter,James")])
-    )
+    result = store.search("Patient", query_string="name.given=Peter,James")
     assert len(result.content["entry"]) == 1
     assert any(
         element["resource"]["name"][0]["given"] == "Peter" or "James"
@@ -189,9 +180,8 @@ def test_search_one_params_and(store: FHIRStore):
 def test_search_and_or(store: FHIRStore):
     """Checks two parameter "and,or" search
     """
-    result = store.comprehensive_search(
-        "Patient",
-        ImmutableMultiDict([("name.family", "Levin,Chalmers"), ("identifier.value", "12345")]),
+    result = store.search(
+        "Patient", query_string="name.family=Levin,Chalmers&identifier.value=12345",
     )
     assert len(result.content["entry"]) == 2
     assert all(
@@ -212,9 +202,7 @@ def test_search_and_or(store: FHIRStore):
 
 
 def test_search_identifier(store: FHIRStore):
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("managingOrganization:identifier", "98765")])
-    )
+    result = store.search("Patient", query_string="managingOrganization:identifier=98765")
     assert (
         result.content["entry"][0]["resource"]["managingOrganization"]["identifier"][0]["value"]
         == "98765"
@@ -222,41 +210,35 @@ def test_search_identifier(store: FHIRStore):
 
 
 def test_count_all(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("_summary", "count")]))
+    result = store.search("Patient", query_string="_summary=count")
     assert result.content["total"] == 3
     assert result.content["tag"]["code"] == "SUBSETTED"
 
 
 def test_count_medicationrequest(store: FHIRStore):
-    result = store.comprehensive_search(
-        "MedicationRequest", ImmutableMultiDict([("_summary", "count")])
-    )
+    result = store.search("MedicationRequest", query_string="_summary=count")
     assert result.content["total"] == 2
 
 
 def test_count_some(store: FHIRStore):
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("_summary", "count"), ("identifier.value", "ne12345")]),
-    )
+    result = store.search("Patient", query_string="_summary=count&identifier.value=ne12345",)
     assert result.content["total"] == 1
     assert result.content["tag"]["code"] == "SUBSETTED"
 
 
 def test_search_element(store: FHIRStore):
-    result = store.comprehensive_search(
-        "Patient", ImmutableMultiDict([("_elements", "birthDate,gender")])
-    )
+    result = store.search("Patient", query_string="_elements=birthDate,gender")
     assert result.content["total"] == 3
     assert result.content["tag"]["code"] == "SUBSETTED"
     assert result.content["entry"] == [
         {"resource": {"gender": "male"}, "search": {"mode": "match"}},
-        {"resource": {"gender": "male", "birthDate": "1932-09-24"}, "search": {"mode": "match"},},
-        {"resource": {"gender": "male", "birthDate": "1974-12-25"}, "search": {"mode": "match"},},
+        {"resource": {"gender": "male", "birthDate": "1932-09-24"}, "search": {"mode": "match"}},
+        {"resource": {"gender": "male", "birthDate": "1974-12-25"}, "search": {"mode": "match"}},
     ]
 
 
 def test_search_two_elements(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("_elements", "birthDate")]))
+    result = store.search("Patient", query_string="_elements=birthDate")
     assert result.content["total"] == 3
     assert result.content["tag"]["code"] == "SUBSETTED"
     assert result.content["entry"] == [
@@ -267,7 +249,7 @@ def test_search_two_elements(store: FHIRStore):
 
 
 def test_search_summary_text(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("_summary", "text")]))
+    result = store.search("Patient", query_string="_summary=text")
     assert result.content["total"] == 3
     assert result.content["tag"]["code"] == "SUBSETTED"
     assert result.content["entry"] == [
@@ -323,9 +305,8 @@ def test_search_summary_text(store: FHIRStore):
 
 
 def test_handle_pipe(store: FHIRStore):
-    result = store.comprehensive_search(
-        "MedicationRequest",
-        ImmutableMultiDict([("contained.code.coding", "http://snomed.info/sct|324252006")]),
+    result = store.search(
+        "MedicationRequest", query_string="contained.code.coding=http://snomed.info/sct|324252006",
     )
     assert result.content["entry"][0]["resource"]["id"] == "medrx0302"
     assert (
@@ -339,7 +320,7 @@ def test_handle_pipe(store: FHIRStore):
 
 
 def test_sort(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("_sort", "birthDate")]))
+    result = store.search("Patient", query_string="_sort=birthDate")
     assert (
         result.content["entry"][0]["resource"]["birthDate"]
         <= result.content["entry"][1]["resource"]["birthDate"]
@@ -347,7 +328,7 @@ def test_sort(store: FHIRStore):
 
 
 def test_sort_desc(store: FHIRStore):
-    result = store.comprehensive_search("Patient", ImmutableMultiDict([("_sort", "-birthDate")]))
+    result = store.search("Patient", query_string="_sort=-birthDate")
     assert (
         result.content["entry"][0]["resource"]["birthDate"]
         >= result.content["entry"][1]["resource"]["birthDate"]
@@ -355,7 +336,5 @@ def test_sort_desc(store: FHIRStore):
 
 
 def test_includes(store: FHIRStore):
-    result = store.comprehensive_search(
-        "MedicationRequest", ImmutableMultiDict([("_include", "MedicationRequest:subject")]),
-    )
+    result = store.search("MedicationRequest", query_string="_include=MedicationRequest:subject",)
     assert len(result.content["entry"]) == 4

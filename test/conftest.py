@@ -20,16 +20,17 @@ def store():
     client = MongoClient(username=MONGO_USERNAME, password=MONGO_PASSWORD)
     try:
         client.server_info()
-    except ServerSelectionTimeoutError as err:
+    except ServerSelectionTimeoutError:
         print("MongoClient could not reach server, is it running ?")
         raise
-    client_es = Elasticsearch([ES_URL], http_auth=("elastic", ES_PASSWORD))
+    client_es = Elasticsearch([ES_URL])
 
     fhirstore = FHIRStore(client, client_es, DB_NAME)
     fhirstore.reset()
-    fhirstore.bootstrap(depth=2, resource="Patient")
-    fhirstore.bootstrap(depth=2, resource="Practitioner")
-    fhirstore.bootstrap(depth=2, resource="MedicationRequest")
+    fhirstore.bootstrap(resource="Patient")
+    fhirstore.bootstrap(resource="Observation")
+    fhirstore.bootstrap(resource="Practitioner")
+    fhirstore.bootstrap(resource="MedicationRequest")
 
     return fhirstore
 
@@ -41,7 +42,7 @@ def mongo_client():
 
 @pytest.fixture(scope="session")
 def es_client():
-    return Elasticsearch([ES_URL], http_auth=("elastic", ES_PASSWORD))
+    return Elasticsearch([ES_URL])
 
 
 @pytest.fixture(scope="function")
