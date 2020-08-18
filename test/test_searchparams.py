@@ -8,9 +8,9 @@ from fhir.resources.bundle import Bundle
 
 from fhirstore import FHIRStore, NotFoundError
 
-import logging
+# import logging
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 # These tests assumes an already existing store exists
 # (store.bootstrap was run)
@@ -36,8 +36,8 @@ def index_resources(request, es_client):
     yield r
 
     # cleanup ES
-    # for r_id in indexed_resource_ids:
-    #     es_client.delete("fhirstore", r_id, refresh="wait_for")
+    for r_id in indexed_resource_ids:
+        es_client.delete("fhirstore", r_id, refresh="wait_for")
 
 
 def test_search_bad_resource_type(store: FHIRStore):
