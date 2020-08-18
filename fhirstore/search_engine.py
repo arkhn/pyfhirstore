@@ -72,8 +72,6 @@ class ElasticSearchEngine(BaseEngine):
                         "path_analyzer": {"tokenizer": "path_tokenizer"},
                         "fhir_reference_analyzer": {"tokenizer": "fhir_reference_tokenizer"},
                     },
-                    "char_filter": {},
-                    "filter": {},
                     "tokenizer": {
                         "path_tokenizer": {"delimiter": "/", "type": "path_hierarchy"},
                         "fhir_reference_tokenizer": {"type": "pattern", "pattern": "/"},

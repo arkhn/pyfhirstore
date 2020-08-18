@@ -10,7 +10,7 @@ from fhirstore import FHIRStore, NotFoundError
 
 import logging
 
-# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 # These tests assumes an already existing store exists
 # (store.bootstrap was run)
@@ -28,20 +28,16 @@ def index_resources(request, es_client):
         # read and index the resource is ES
         with open(f"test/fixtures/{path}") as f:
             r = json.load(f)
-            res = es_client.index(index="fhirstore", body={r["resourceType"]: r})
+            res = es_client.index(
+                index="fhirstore", body={r["resourceType"]: r}, refresh="wait_for"
+            )
             indexed_resource_ids.append(res["_id"])
-    # wait for the indexed documents to be available
-    while es_client.count(index="fhirstore")["count"] < len(indexed_resource_ids):
-        sleep(5 / 1000)
 
     yield r
 
     # cleanup ES
-    for r_id in indexed_resource_ids:
-        es_client.delete("fhirstore", r_id)
-
-    while es_client.count(index="fhirstore")["count"] > 0:
-        sleep(5 / 1000)
+    # for r_id in indexed_resource_ids:
+    #     es_client.delete("fhirstore", r_id, refresh="wait_for")
 
 
 def test_search_bad_resource_type(store: FHIRStore):
@@ -243,20 +239,28 @@ def test_searchparam_standard_security(store: FHIRStore):
     pass
 
 
-@pytest.mark.skip()  # fhirpath does not handle it yet (Resource.meta does not seem to be indexed)
-@pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
-)
+@pytest.mark.resources("patient-example.json")
 def test_searchparam_standard_tag(store: FHIRStore, index_resources):
     """The _tag param searches on Resource.meta.tag
     """
+    # _tag=system|code
     result = store.search(
         "Patient", query_string="_tag=http://terminology.hl7.org/CodeSystem/v3-ActReason|HTEST"
     )
     assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search(
+            "Patient", query_string="_tag=http://terminology.hl7.org/CodeSystem/v3-ActReason|WHAT"
+        )
+
+    # _tag=code
+    result = store.search("Patient", query_string="_tag=HTEST")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="_tag=WHAT")
 
 
-@pytest.mark.skip()  # fhirpath does not handle it yet
+@pytest.mark.skip()  # fhirpath does not index Resource.text.div (Narrative) yet
 def test_searchparam_standard_text(store: FHIRStore):
     """The _text param performs text search against the narrative of the resource
     """
@@ -291,14 +295,15 @@ def test_searchparam_type_string(store: FHIRStore, index_resources):
     # assert result.total == 1
 
     # TODO: case insensitive
-    # result = store.search("Patient", query_string="family=donald")
-    # assert result.total == 1
+    result = store.search("Patient", query_string="family=donald")
+    assert result.total == 1
 
     # with spaces
     result = store.search("Patient", query_string="address=Basse Normandie")
     assert result.total == 1
 
 
+@pytest.mark.skip()  # custom filtering is not implemented
 def test_searchparam_type_special(store: FHIRStore):
     """Handle special search parameters
     """
@@ -484,7 +489,7 @@ def test_searchparam_type_date_period(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources("observation-bodyheight-example.json")
-def test_searchparam_type_reference(store: FHIRStore, index_resources):
+def test_searchparam_type_reference_literal(store: FHIRStore, index_resources):
     """Handle reference search parameters (Reference or canonical)
     """
 
@@ -516,6 +521,48 @@ def test_searchparam_type_reference(store: FHIRStore, index_resources):
         )
 
 
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_type_reference_identifier(store: FHIRStore, index_resources):
+    """Handle reference search parameters using the logical identifier.
+    The modifier :identifier allows for searching by the
+    identifier rather than the literal reference
+    """
+
+    # [param-ref]:identifier=[value]
+    result = store.search("Observation", query_string="subject:identifier=654321")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Observation", query_string="subject:identifier=123456789")
+
+    # [param-ref]:identifier=[system]|[value]: the value of [code] matches an
+    # reference.identifier.value, and the value of [system] matches the system
+    # property of the Identifier
+    result = store.search(
+        "Observation", query_string="subject:identifier=urn:oid:0.1.2.3.4.5.6.7|654321"
+    )
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search(
+            "Observation", query_string="subject:identifier=urn:oid:0.1.2.3.4.5.6.7|123456789"
+        )
+
+    # TODO: not working yet, when omitting the system, the search is applied only on the value
+    # (it should also filter by empty system)
+    # [param-ref]:identifier=|[code]: the value of [code] matches a reference.identifier.value,
+    # and the Identifier has no system property
+    result = store.search("Observation", query_string="subject:identifier=|654321")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Observation", query_string="subject:identifier=|123456789")
+
+    # [param-ref]:identifier=[system]|: any element where the value of [system] matches the
+    # system property of the Identifier
+    result = store.search("Observation", query_string="subject:identifier=urn:oid:0.1.2.3.4.5.6.7|")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Observation", query_string="subject:identifier=other|")
+
+
 def test_searchparam_type_composite(store: FHIRStore):
     """Handle composite search parameter that combines a search on two values together.
     """
@@ -539,7 +586,7 @@ def test_searchparam_type_quantity(store: FHIRStore, index_resources):
         store.search("Observation", query_string="value-quantity=lt50")
 
     # Search for all the observations with a value of 66.899999(+/-0.05)
-    # mg where "[in_i]" is understood as a UCUM unit (system/code)
+    # where "[in_i]" is understood as a UCUM unit (system/code)
     result = store.search(
         "Observation", query_string="value-quantity=66.899999|http://unitsofmeasure.org|[in_i]",
     )

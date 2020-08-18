@@ -397,18 +397,6 @@ class FHIRStore:
                     ]
                 }
             )
-        except elasticsearch.exceptions.AuthenticationException as e:
-            return OperationOutcome(
-                {
-                    "issue": [
-                        {
-                            "severity": "error",
-                            "code": "invalid",
-                            "diagnostics": e.info["error"]["root_cause"],
-                        }
-                    ]
-                }
-            )
         except pydantic.ValidationError as e:
             issues = []
             for err in e.errors():
