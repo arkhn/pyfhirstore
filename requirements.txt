@@ -7,4 +7,4 @@ werkzeug==1.0.1
 fhir.resources>=6.0.0b3,<7.0
 
 fhirpath_helpers @ git+https://github.com/nazrulworld/fhirpath_helpers@0f0c5001ef6060e6bf319e6a7fc6f09676712267#egg=fhirpath_helpers
-fhirpath @ git+https://github.com/arkhn/fhirpath@5ec9ca302df27272669889c2686f768eeeab17b6#egg=fhirpath
+fhirpath @ git+https://github.com/arkhn/fhirpath@sv/handle-multiple-index#egg=fhirpath

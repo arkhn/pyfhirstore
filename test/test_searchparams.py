@@ -9,7 +9,6 @@ from fhir.resources.bundle import Bundle
 from fhirstore import FHIRStore, NotFoundError
 
 # import logging
-
 # logging.basicConfig(level=logging.DEBUG)
 
 # These tests assumes an already existing store exists
@@ -79,7 +78,7 @@ def test_search_not_found(store: FHIRStore):
         store.search("Patient", query_string="gender=male")
 
 
-def test_searchparam_not_exist(store: FHIRStore,):
+def test_searchparam_not_exist(store: FHIRStore):
     """An error should be returned if a provided search parameter is unknown
     """
 
@@ -908,41 +907,69 @@ def test_searchparam_revinclude(store: FHIRStore):
 # SUMMARY
 
 
-def test_searchparam_summary_true(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_summary_true(store: FHIRStore, index_resources):
     """Handle _summary=true
     Return a limited subset of elements from the resource. This subset SHOULD consist solely of all
     supported elements that are marked as "summary" in the base definition of the resource(s)
     """
-    pass
+    result = store.search("Patient", query_string="_summary=true")
+    assert result.entry[0].resource.text is None
+    assert result.entry[0].resource.id is not None
+    assert result.entry[0].resource.meta is not None
+    assert result.entry[0].resource.birthDate is not None  # birthDate should not be in summary
+    assert result.entry[0].resource.maritalStatus is None  # maritalStatus should not be in summary
 
 
-def test_searchparam_summary_false(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_summary_false(store: FHIRStore, index_resources):
     """Handle _summary=false
     Return all parts of the resource(s)
     """
-    pass
+    result = store.search("Patient", query_string="_summary=false")
+    assert result.entry[0].resource.text is not None
+    assert result.entry[0].resource.id is not None
+    assert result.entry[0].resource.meta is not None
+    assert result.entry[0].resource.link is not None
+    assert result.entry[0].resource.birthDate is not None
 
 
-def test_searchparam_summary_text(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_summary_text(store: FHIRStore, index_resources):
     """Handle _summary=text
     Return only the "text" element, the 'id' element, the 'meta' element, and only top-level
     mandatory elements
     """
-    pass
+    result = store.search("Patient", query_string="_summary=text")
+    assert result.entry[0].resource.text is not None
+    assert result.entry[0].resource.id is not None
+    assert result.entry[0].resource.meta is not None
+    assert result.entry[0].resource.link is not None  # link is a mandatory top element
+    # communication would also be a mandatory top element but is not in the document
+    assert result.entry[0].resource.birthDate is None  # birthDate is not mandatory
 
 
-def test_searchparam_summary_data(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_summary_data(store: FHIRStore, index_resources):
     """Handle _summary=data
     Remove the text element
     """
-    pass
+    result = store.search("Patient", query_string="_summary=data")
+    assert result.entry[0].resource.text is None
+    assert result.entry[0].resource.id is not None
+    assert result.entry[0].resource.meta is not None
+    assert result.entry[0].resource.link is not None
+    assert result.entry[0].resource.birthDate is not None
 
 
-def test_searchparam_summary_count(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_summary_count(store: FHIRStore, index_resources):
     """Handle _summary=count
     Search only: just return a count of the matching resources, without returning the actual matches
     """
-    pass
+    result = store.search("Patient", query_string="_summary=count")
+    assert result.entry == []
+    assert result.total == 1
 
 
 # ELEMENTS

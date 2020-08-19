@@ -47,6 +47,15 @@
     }
   ],
   "gender": "male",
+  "maritalStatus": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+        "code": "UNK",
+        "display": "unknown"
+      }
+    ]
+  },
   "photo": [
     {
       "contentType": "image/gif",
