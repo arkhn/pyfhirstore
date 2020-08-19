@@ -879,18 +879,30 @@ def test_searchparam_sort(store: FHIRStore, index_resources):
 # If _count has the value 0, this shall be treated the same as _summary=count.
 
 
-def test_searchparam_count(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
+)
+def test_searchparam_count(store: FHIRStore, index_resources):
     """Handle _count
     Observation?_count=10
     """
-    pass
+    result = store.search("Patient", query_string="_count=10")
+    assert len(result.entry) == 3
+
+    result = store.search("Patient", query_string="_count=2")
+    assert len(result.entry) == 2
 
 
-def test_searchparam_count_zero(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
+)
+def test_searchparam_count_zero(store: FHIRStore, index_resources):
     """Handle _count
     Observation?_count=0
     """
-    pass
+    result = store.search("Patient", query_string="_count=0")
+    assert result.entry == []
+    assert result.total == 3
 
 
 # INCLUDING RESOURCES
