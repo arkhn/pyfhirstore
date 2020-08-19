@@ -7,8 +7,8 @@ from fhir.resources.bundle import Bundle
 
 from fhirstore import FHIRStore, NotFoundError
 
-# import logging
-# logging.basicConfig(level=logging.DEBUG)
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 # These tests assumes an already existing store exists
 # (store.bootstrap was run)
@@ -667,7 +667,7 @@ def test_searchparam_modifier_missing(store: FHIRStore, index_resources):
     For all parameters.
     Searching for gender:missing=true will return all the resources that don't
     have a value for the gender parameter
-     """
+    """
     result = store.search("Patient", query_string="general-practitioner:missing=true")
     assert result.total == 1
     with raises(fhirpath.exceptions.NoResultFound):
@@ -731,11 +731,34 @@ def test_searchparam_modifier_above(store: FHIRStore):
 # may be used to control the nature of the matching.
 
 
-def test_searchparam_prefix_eq(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+)
+def test_searchparam_prefix_eq(store: FHIRStore, index_resources):
     """Handle :eq prefix
     the value for the parameter in the resource is equal to the provided value
     """
-    pass
+    # number
+    result = store.search("MolecularSequence", query_string="variant-start=eq128273725")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("MolecularSequence", query_string="variant-start=eq128275")
+
+    # date
+    result = store.search("Patient", query_string="birthdate=eq1995-12-25")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Patient", query_string="birthdate=eq1995-12-24")
+
+    # quantity
+    result = store.search("Observation", query_string="value-quantity=eq66.899999999999991")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Observation", query_string="value-quantity=eq67")
+    # observation-bodyheight-example
 
 
 def test_searchparam_prefix_ne(store: FHIRStore):
