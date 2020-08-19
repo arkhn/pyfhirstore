@@ -30,6 +30,18 @@
       "given": ["Henry"]
     }
   ],
+  "address": [
+    {
+      "use": "home",
+      "line": ["6 avenue des côteaux"],
+      "city": "Verson",
+      "state": "Basse Normandie",
+      "postalCode": "14790",
+      "period": {
+        "start": "2002-12-25"
+      }
+    }
+  ],
   "gender": "male",
   "birthDate": "1932-09-24",
   "managingOrganization": {

@@ -844,11 +844,33 @@ def test_searchparam_mutltiple_types_constrained(store: FHIRStore):
 # can contain a comma-separated list of sort rules in priority order.
 
 
-def test_searchparam_sort(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
+)
+def test_searchparam_sort(store: FHIRStore, index_resources):
     """Handle searching on multiple resource types while restraining the returned resources
     Observation?_sort=status,-date,category
     """
-    pass
+    # ascending order
+    result = store.search("Patient", query_string="_sort=family")
+    result_names = [
+        sorted(name.family for name in entry.resource.name if name.family is not None)[0]
+        for entry in result.entry
+    ]
+    assert result_names == sorted(result_names)
+
+    # descending order
+    result = store.search("Patient", query_string="_sort=-address-city")
+    result_cities = [
+        sorted(address.city for address in entry.resource.address if address.city is not None)[-1]
+        for entry in result.entry
+    ]
+    assert result_cities == sorted(result_cities, reverse=True)
+
+    # several fields
+    result = store.search("Patient", query_string="_sort=address-city,-family")
+    result_ids = [entry.resource.id for entry in result.entry]
+    assert result_ids == ["example", "xcda", "pat1"]
 
 
 # PAGE COUNT
