@@ -1,7 +1,6 @@
 import pytest
 import json
 from pytest import raises
-from time import sleep
 
 import fhirpath
 from fhir.resources.bundle import Bundle
@@ -259,14 +258,19 @@ def test_searchparam_standard_tag(store: FHIRStore, index_resources):
         store.search("Patient", query_string="_tag=WHAT")
 
 
-@pytest.mark.skip()  # fhirpath does not index Resource.text.div (Narrative) yet
-def test_searchparam_standard_text(store: FHIRStore):
+# fhirpath does not index Resource.text.div (Narrative) yet
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_standard_text(store: FHIRStore, index_resources):
     """The _text param performs text search against the narrative of the resource
     """
-    pass
+    result = store.search("Patient", query_string="_text=Patient Donald DUCK @ Acme Healthcare")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="_text=Patient BLEH BLUH @ Acme Healthcare")
 
 
-@pytest.mark.skip()  # custom filtering is not implemented
+# custom filtering is not implemented
+@pytest.mark.skip()
 def test_searchparam_standard_filter(store: FHIRStore):
     """The _filter param performs advanced filtering
     """
@@ -289,20 +293,21 @@ def test_searchparam_type_string(store: FHIRStore, index_resources):
     with raises(fhirpath.exceptions.NoResultFound):
         store.search("Patient", query_string="family=Unknown")
 
-    # TODO: accent-insensitive
-    # result = store.search("Patient", query_string="family=Donàld")
-    # assert result.total == 1
+    # accent-insensitive
+    result = store.search("Patient", query_string="family=Donàld")
+    assert result.total == 1
 
-    # TODO: case insensitive
-    result = store.search("Patient", query_string="family=donald")
+    # case insensitive
+    result = store.search("Patient", query_string="family=donaLd")
     assert result.total == 1
 
     # with spaces
-    result = store.search("Patient", query_string="address=Basse Normandie")
+    result = store.search("Patient", query_string="address=Basse normandie")
     assert result.total == 1
 
 
-@pytest.mark.skip()  # custom filtering is not implemented
+# TODO: special search parameters are not yet implemented
+@pytest.mark.skip()
 def test_searchparam_type_special(store: FHIRStore):
     """Handle special search parameters
     """
@@ -436,7 +441,7 @@ def test_searchparam_type_date_datetime(store: FHIRStore, index_resources):
 
     # TODO: the searchparam "date" on Observation should match effectiveDatetime or
     # effectivDuration or effectiveTiming or effectiveInstant. Currently, it tries to
-    # search on Observation.effecive (which does not exist).
+    # search on Observation.effective (which does not exist).
     # result = store.search("Observation", query_string="date=1999-07-02")
     # assert result.total == 1
     # with raises(fhirpath.exceptions.NoResultFound):
@@ -492,13 +497,12 @@ def test_searchparam_type_reference_literal(store: FHIRStore, index_resources):
     """Handle reference search parameters (Reference or canonical)
     """
 
-    # TODO
     # [parameter]=[id] the logical [id] of a resource using
     # a local reference (i.e. a relative reference)
-    # result = store.search("Observation", query_string="subject=pat1")
-    # assert result.total == 1
-    # with raises(fhirpath.exceptions.NoResultFound):
-    #     store.search("Observation", query_string="subject=patUnknown")
+    result = store.search("Observation", query_string="subject=pat1")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Observation", query_string="subject=patUnknown")
 
     # [parameter]=[type]/[id] the logical [id] of a resourceof a specified type using a local
     # reference (i.e. a relative reference), for when the reference can point to different
@@ -562,8 +566,11 @@ def test_searchparam_type_reference_identifier(store: FHIRStore, index_resources
         store.search("Observation", query_string="subject:identifier=other|")
 
 
+# TODO: the "$" syntax is not yet handled in fhirpath
+@pytest.mark.skip()
 def test_searchparam_type_composite(store: FHIRStore):
     """Handle composite search parameter that combines a search on two values together.
+    eg: Observation?component-code-value-quantity=http://loinc.org|8480-6$lt60
     """
     pass
 
@@ -608,10 +615,45 @@ def test_searchparam_type_quantity(store: FHIRStore, index_resources):
         store.search("Observation", query_string="value-quantity=66.899999||other")
 
 
-def test_searchparam_type_uri(store: FHIRStore):
+@pytest.mark.resources("codesystem-example.json")
+def test_searchparam_type_uri(store: FHIRStore, index_resources):
     """Handle uri search parameters
     """
-    pass
+    result = store.search(
+        "CodeSystem", query_string="system=http://hl7.org/fhir/CodeSystem/example"
+    )
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("CodeSystem", query_string="system=http://hl7.org/fhir/CodeSystem/other")
+
+
+@pytest.mark.resources("codesystem-example.json")
+def test_searchparam_type_uri_below(store: FHIRStore, index_resources):
+    """Handle uri search parameters
+    """
+    result = store.search("CodeSystem", query_string="system:below=http://hl7.org/fhir/")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/Arkhn")
+
+    result = store.search(
+        "CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/example"
+    )
+    assert result.total == 1
+
+
+# TODO: this seems to be implemented by fhirpath but not the right way.
+@pytest.mark.skip()
+@pytest.mark.resources("codesystem-example.json")
+def test_searchparam_type_uri_above(store: FHIRStore, index_resources):
+    """Handle uri search parameters
+    """
+    result = store.search(
+        "CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/example/24"
+    )
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/")
 
 
 # SEARCH PARAMETERS MODIFIERS
@@ -619,13 +661,22 @@ def test_searchparam_type_uri(store: FHIRStore):
 # The modifiers are separated from the parameter name by a colon.
 
 
-def test_searchparam_modifier_missing(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_modifier_missing(store: FHIRStore, index_resources):
     """Handle :missing modifier
     For all parameters.
     Searching for gender:missing=true will return all the resources that don't
     have a value for the gender parameter
      """
-    pass
+    result = store.search("Patient", query_string="general-practitioner:missing=true")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="general-practitioner:missing=false")
+
+    result = store.search("Patient", query_string="gender:missing=false")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="gender:missing=true")
 
 
 def test_searchparam_modifier_exact(store: FHIRStore):

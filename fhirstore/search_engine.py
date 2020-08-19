@@ -68,13 +68,18 @@ class ElasticSearchEngine(BaseEngine):
                 "index.mapping.total_fields.limit": 10000,
                 "index.mapping.nested_fields.limit": 10000,
                 "analysis": {
+                    "normalizer": {"fhir_normalizer": {"filter": ["lowercase", "asciifolding"]}},
                     "analyzer": {
                         "path_analyzer": {"tokenizer": "path_tokenizer"},
                         "fhir_reference_analyzer": {"tokenizer": "fhir_reference_tokenizer"},
                     },
                     "tokenizer": {
                         "path_tokenizer": {"delimiter": "/", "type": "path_hierarchy"},
-                        "fhir_reference_tokenizer": {"type": "pattern", "pattern": "/"},
+                        "fhir_reference_tokenizer": {
+                            "type": "pattern",
+                            "pattern": "(?:\w+\/)?(https?\:\/\/.*|\w+)",
+                            "group": 1,
+                        },
                     },
                 },
             },

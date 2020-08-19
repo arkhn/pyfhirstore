@@ -31,6 +31,7 @@ def store():
     fhirstore.bootstrap(resource="Observation")
     fhirstore.bootstrap(resource="Practitioner")
     fhirstore.bootstrap(resource="MedicationRequest")
+    fhirstore.bootstrap(resource="CodeSystem")
 
     return fhirstore
 
