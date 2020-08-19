@@ -980,11 +980,19 @@ def test_searchparam_summary_count(store: FHIRStore, index_resources):
 # elements in a resource as part of the list of elements.
 
 
-def test_searchparam_elements(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_elements(store: FHIRStore, index_resources):
     """Handle _elements
     Patient?_elements=identifier,active,link
     """
-    pass
+    result = store.search("Patient", query_string="_elements=identifier,active,link")
+    assert result.entry[0].resource.id is not None
+    assert result.entry[0].resource.identifier is not None
+    assert result.entry[0].resource.active is not None
+    assert result.entry[0].resource.link is not None
+    assert result.entry[0].resource.meta is None
+    assert result.entry[0].resource.birthDate is None
+    assert result.entry[0].resource.maritalStatus is None
 
 
 def test_searchparam_element_missing_required(store: FHIRStore):
