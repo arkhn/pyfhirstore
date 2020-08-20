@@ -69,7 +69,7 @@ def test_search_all_of_qs(store: FHIRStore, index_resources):
 
 
 def test_search_not_found(store: FHIRStore):
-    """Check that the output type is correct
+    """Check that an exception is raised if no results is found.
     """
     with raises(fhirpath.exceptions.NoResultFound):
         store.search("Patient", query_string="gender=male")
@@ -173,7 +173,7 @@ def test_searchparam_complex(store: FHIRStore, index_resources):
 # STANDARD SEARCH PARAMETERS THAT APPLY TO ALL RESOURCES
 
 
-@pytest.mark.skip
+@pytest.mark.skip()
 def test_searchparam_standard_content(store: FHIRStore):
     """The _content param performs text search against the whole resource
     """
@@ -986,6 +986,7 @@ def test_searchparam_prefix_le(store: FHIRStore, index_resources):
         result = store.search("Observation", query_string="value-quantity=le66")
 
 
+@pytest.mark.skip()
 def test_searchparam_prefix_sa(store: FHIRStore):
     """Handle :sa prefix
     the value for the parameter in the resource starts after the provided value
@@ -993,6 +994,7 @@ def test_searchparam_prefix_sa(store: FHIRStore):
     pass
 
 
+@pytest.mark.skip()
 def test_searchparam_prefix_eb(store: FHIRStore):
     """Handle :eb prefix
     the value for the parameter in the resource ends before the provided value
@@ -1000,6 +1002,7 @@ def test_searchparam_prefix_eb(store: FHIRStore):
     pass
 
 
+@pytest.mark.skip()
 def test_searchparam_prefix_ap(store: FHIRStore):
     """Handle :eq prefix
     the value for the parameter in the resource is approximately the same to the provided value.
@@ -1019,6 +1022,7 @@ def test_searchparam_prefix_ap(store: FHIRStore):
 # is a request to return all the lab reports that have a subject whose name includes "peter".
 
 
+@pytest.mark.skip()
 def test_searchparam_chained_simple(store: FHIRStore):
     """Handle a single chained parameter
     DiagnosticReport?subject.name=peter
@@ -1026,6 +1030,7 @@ def test_searchparam_chained_simple(store: FHIRStore):
     pass
 
 
+@pytest.mark.skip()
 def test_searchparam_chained_multiple(store: FHIRStore):
     """Handle multiple chained parameters
     Patient?general-practitioner.name=Joe&general-practitioner.address-state=MN
@@ -1033,6 +1038,7 @@ def test_searchparam_chained_multiple(store: FHIRStore):
     pass
 
 
+@pytest.mark.skip()
 def test_searchparam_chained_typed(store: FHIRStore):
     """Handle a typed chained parameter
     Patient?general-practitioner.name=Joe&general-practitioner.address-state=MN
@@ -1046,6 +1052,7 @@ def test_searchparam_chained_typed(store: FHIRStore):
 # resources can be selected based on the properties of resources that they refer to)
 
 
+@pytest.mark.skip()
 def test_searchparam_reverse_chaining(store: FHIRStore):
     """Handle a single chained parameter
     Patient?_has:Observation:patient:code=1234-5
@@ -1053,6 +1060,7 @@ def test_searchparam_reverse_chaining(store: FHIRStore):
     pass
 
 
+@pytest.mark.skip()
 def test_searchparam_reverse_chaining_chained(store: FHIRStore):
     """Handle a single chained parameter
     Patient?_has:Observation:patient:_has:AuditEvent:entity:user=MyUserId
@@ -1064,6 +1072,7 @@ def test_searchparam_reverse_chaining_chained(store: FHIRStore):
 # The _list parameter allows for the retrieval of resources that are referenced by a List resource.
 
 
+@pytest.mark.skip()
 def test_searchparam_list(store: FHIRStore):
     """Handle _list parameter
     Patient?_list=42&gender=female
@@ -1082,23 +1091,26 @@ def test_searchparam_list(store: FHIRStore):
 # search parameters shared across the entire set of specified resources may be used
 
 
+@pytest.mark.skip()
+def test_searchparam_no_type_provided(store: FHIRStore):
+    """Handle searching on multiple resource types
+    GET [base]/?params...
+    """
+    pass
+
+
+@pytest.mark.skip()
 def test_searchparam_mutltiple_types(store: FHIRStore):
-    """Handle searching on multiple resource types
-    GET [base]/?params...
-    """
-    pass
-
-
-def test_searchparam_mutltiple_types_bad_param(store: FHIRStore):
-    """Handle searching on multiple resource types
-    GET [base]/?params...
-    """
-    pass
-
-
-def test_searchparam_mutltiple_types_constrained(store: FHIRStore):
     """Handle searching on multiple resource types while restraining the returned resources
     GET [base]/?_type=Observation,Condition&other params...
+    """
+    pass
+
+
+@pytest.mark.skip()
+def test_searchparam_mutltiple_types_bad_param(store: FHIRStore):
+    """Should raise an error if the used search parameters are not
+    shared across the entire set of specified resources
     """
     pass
 
@@ -1188,6 +1200,7 @@ def test_searchparam_count_zero(store: FHIRStore, index_resources):
 #       multiple possible target types)
 
 
+@pytest.mark.skip()
 def test_searchparam_include(store: FHIRStore):
     """Handle _include
     MedicationRequest?_include=MedicationRequest:patient
@@ -1195,6 +1208,7 @@ def test_searchparam_include(store: FHIRStore):
     pass
 
 
+@pytest.mark.skip()
 def test_searchparam_revinclude(store: FHIRStore):
     """Handle _include
     MedicationRequest?_revinclude=Provenance:target
@@ -1293,6 +1307,7 @@ def test_searchparam_elements(store: FHIRStore, index_resources):
     assert result.entry[0].resource.maritalStatus is None
 
 
+@pytest.mark.skip()
 def test_searchparam_element_missing_required(store: FHIRStore):
     """Handle _elements
     Clients must select all required attributes otherwise an error is returned.
