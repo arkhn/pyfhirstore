@@ -282,7 +282,7 @@ class FHIRStore:
                 )
             return OperationOutcome(**{"issue": issues})
 
-    def search(self, resource_type, query_string=None, params=None):
+    def search(self, resource_type=None, query_string=None, params=None):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -301,7 +301,8 @@ class FHIRStore:
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
-        self.validate_resource_type(resource_type)
+        if resource_type:
+            self.validate_resource_type(resource_type)
 
         params = (
             Search.parse_query_string(query_string)

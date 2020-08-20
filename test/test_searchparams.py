@@ -7,6 +7,8 @@ from fhir.resources.bundle import Bundle
 
 from fhirstore import FHIRStore, NotFoundError
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 # These tests assumes an already existing store exists
 # (store.bootstrap was run)
@@ -1099,12 +1101,19 @@ def test_searchparam_no_type_provided(store: FHIRStore):
     pass
 
 
-@pytest.mark.skip()
-def test_searchparam_mutltiple_types(store: FHIRStore):
+@pytest.mark.resources("patient-example.json", "practitioner-example.json")
+def test_searchparam_mutltiple_types(store: FHIRStore, index_resources):
     """Handle searching on multiple resource types while restraining the returned resources
     GET [base]/?_type=Observation,Condition&other params...
     """
-    pass
+    result = store.search(query_string="_type=Patient,Practitioner&address-city=Verson")
+    assert len(result.entry) == 1
+
+    result = store.search(query_string="_type=Patient,Practitioner&address-city=PleasantVille")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search(query_string="_type=Patient,Practitioner&address-city=NotFound")
 
 
 @pytest.mark.skip()
