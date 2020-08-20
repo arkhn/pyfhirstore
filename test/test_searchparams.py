@@ -7,9 +7,6 @@ from fhir.resources.bundle import Bundle
 
 from fhirstore import FHIRStore, NotFoundError
 
-import logging
-
-logging.basicConfig(level=logging.DEBUG)
 
 # These tests assumes an already existing store exists
 # (store.bootstrap was run)
@@ -266,8 +263,12 @@ def test_searchparam_standard_text(store: FHIRStore, index_resources):
     """
     result = store.search("Patient", query_string="_text=Patient Donald DUCK @ Acme Healthcare")
     assert result.total == 1
+
+    result = store.search("Patient", query_string="_text=DUCK")
+    assert result.total == 1
+
     with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="_text=Patient BLEH BLUH @ Acme Healthcare")
+        store.search("Patient", query_string="_text=rocket")
 
 
 # custom filtering is not implemented
@@ -680,22 +681,58 @@ def test_searchparam_modifier_missing(store: FHIRStore, index_resources):
         store.search("Patient", query_string="gender:missing=true")
 
 
-def test_searchparam_modifier_exact(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_modifier_exact(store: FHIRStore, index_resources):
     """Handle :exact modifier
     For string: :exact returns results that match the entire supplied parameter,
     including casing and combining characters
     """
-    pass
+    result = store.search("Patient", query_string="family:exact=Donald")
+    assert result.total == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="family:exact=Other")
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="family:exact=donald")
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="family:exact=Donàld")
 
 
-def test_searchparam_modifier_contains(store: FHIRStore):
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_modifier_contains(store: FHIRStore, index_resources):
     """Handle :contains modifier
     For string: case insensitive and combining character-insensitive,
     search text matched anywhere in the string
     """
-    pass
+    result = store.search("Patient", query_string="family:contains=Don")
+    assert result.total == 1
+
+    result = store.search("Patient", query_string="family:contains=don")
+    assert result.total == 1
+
+    result = store.search("Patient", query_string="family:contains=D")
+    assert result.total == 1
+
+    result = store.search("Patient", query_string="family:contains=ld")
+    assert result.total == 1
+
+    result = store.search("Patient", query_string="family:contains=Donald")
+    assert result.total == 1
+
+    result = store.search("Patient", query_string="family:contains=dOnàld")
+    assert result.total == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="family:contains=Dan")
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("Patient", query_string="family:contains=dnoald")
 
 
+# TODO: we will need this at some point
+@pytest.mark.skip()
 def test_searchparam_modifier_text(store: FHIRStore):
     """Handle :text modifier
     For token: :text (the match does a partial searches on the text portion of a CodeableConcept
@@ -704,6 +741,8 @@ def test_searchparam_modifier_text(store: FHIRStore):
     pass
 
 
+# TODO: we can do this afer implementing chaining / reverse chaining
+@pytest.mark.skip()
 def test_searchparam_modifier_type(store: FHIRStore):
     """Handle :[type] modifier
     For reference: :[type] where [type] is the name of a type of resource, :identifier
@@ -711,20 +750,37 @@ def test_searchparam_modifier_type(store: FHIRStore):
     pass
 
 
-def test_searchparam_modifier_below(store: FHIRStore):
+@pytest.mark.resources("codesystem-example.json")
+def test_searchparam_modifier_below(store: FHIRStore, index_resources):
     """Handle :below modifier
     For uri: :below indicate that instead of an exact match, either the search term
     left-matches the value
     """
-    pass
+    result = store.search("CodeSystem", query_string="system:below=http://hl7.org/fhir/")
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/Arkhn")
+
+    result = store.search(
+        "CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/example"
+    )
+    assert result.total == 1
 
 
-def test_searchparam_modifier_above(store: FHIRStore):
+# TODO: this seems to be implemented by fhirpath but not the right way.
+@pytest.mark.skip()
+@pytest.mark.resources("codesystem-example.json")
+def test_searchparam_modifier_above(store: FHIRStore, index_resources):
     """Handle :above modifier
     For uri: :above indicate that instead of an exact match, either the search term
     right-matches the value
     """
-    pass
+    result = store.search(
+        "CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/example/24"
+    )
+    assert result.total == 1
+    with raises(fhirpath.exceptions.NoResultFound):
+        store.search("CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/")
 
 
 # SEARCH PARAMETERS PREFIXES

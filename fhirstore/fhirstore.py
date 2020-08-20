@@ -374,6 +374,7 @@ class FHIRStore:
                 }
             )
         except elasticsearch.exceptions.RequestError as e:
+            # raise Exception(e.info["error"]["root_cause"])
             return OperationOutcome(
                 {
                     "issue": [
