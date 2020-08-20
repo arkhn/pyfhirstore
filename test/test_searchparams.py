@@ -8,6 +8,7 @@ from fhir.resources.bundle import Bundle
 from fhirstore import FHIRStore, NotFoundError
 
 import logging
+
 logging.basicConfig(level=logging.DEBUG)
 
 # These tests assumes an already existing store exists
@@ -758,42 +759,175 @@ def test_searchparam_prefix_eq(store: FHIRStore, index_resources):
 
     with raises(fhirpath.exceptions.NoResultFound):
         result = store.search("Observation", query_string="value-quantity=eq67")
-    # observation-bodyheight-example
 
 
-def test_searchparam_prefix_ne(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+)
+def test_searchparam_prefix_ne(store: FHIRStore, index_resources):
     """Handle :ne prefix
     the value for the parameter in the resource is not equal to the provided value
     """
-    pass
+    # number
+    result = store.search("MolecularSequence", query_string="variant-start=ne128275")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("MolecularSequence", query_string="variant-start=ne128273725")
+
+    # date
+    result = store.search("Patient", query_string="birthdate=ne1995-12-24")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Patient", query_string="birthdate=ne1995-12-25")
+
+    # quantity
+    result = store.search("Observation", query_string="value-quantity=ne67")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Observation", query_string="value-quantity=ne66.899999999999991")
 
 
-def test_searchparam_prefix_gt(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+)
+def test_searchparam_prefix_gt(store: FHIRStore, index_resources):
     """Handle :gt prefix
     the value for the parameter in the resource is greater than the provided value
     """
-    pass
+    # number
+    result = store.search("MolecularSequence", query_string="variant-start=gt128271")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("MolecularSequence", query_string="variant-start=gt128273725")
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("MolecularSequence", query_string="variant-start=gt128273729")
+
+    # date
+    result = store.search("Patient", query_string="birthdate=gt1995-12-24")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Patient", query_string="birthdate=gt1995-12-25")
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Patient", query_string="birthdate=gt1995-12-28")
+
+    # quantity
+    result = store.search("Observation", query_string="value-quantity=gt66")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Observation", query_string="value-quantity=gt66.899999999999991")
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Observation", query_string="value-quantity=gt67")
 
 
-def test_searchparam_prefix_lt(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+)
+def test_searchparam_prefix_lt(store: FHIRStore, index_resources):
     """Handle :lt prefix
     the value for the parameter in the resource is less than the provided value
     """
-    pass
+    # number
+    result = store.search("MolecularSequence", query_string="variant-start=lt128273729")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("MolecularSequence", query_string="variant-start=lt128273725")
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("MolecularSequence", query_string="variant-start=lt128273721")
+
+    # date
+    result = store.search("Patient", query_string="birthdate=lt1995-12-28")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Patient", query_string="birthdate=lt1995-12-25")
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Patient", query_string="birthdate=lt1995-12-24")
+
+    # quantity
+    result = store.search("Observation", query_string="value-quantity=lt67")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Observation", query_string="value-quantity=lt66.899999999999991")
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Observation", query_string="value-quantity=lt66")
 
 
-def test_searchparam_prefix_ge(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+)
+def test_searchparam_prefix_ge(store: FHIRStore, index_resources):
     """Handle :ge prefix
     the value for the parameter in the resource is greater or equal to the provided value
     """
-    pass
+    # number
+    result = store.search("MolecularSequence", query_string="variant-start=ge128271")
+    assert len(result.entry) == 1
+    result = store.search("MolecularSequence", query_string="variant-start=ge128273725")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("MolecularSequence", query_string="variant-start=ge128273729")
+
+    # date
+    result = store.search("Patient", query_string="birthdate=ge1995-12-24")
+    assert len(result.entry) == 1
+    result = store.search("Patient", query_string="birthdate=ge1995-12-25")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Patient", query_string="birthdate=ge1995-12-28")
+
+    # quantity
+    result = store.search("Observation", query_string="value-quantity=ge66")
+    assert len(result.entry) == 1
+    result = store.search("Observation", query_string="value-quantity=ge66.899999999999991")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Observation", query_string="value-quantity=gt67")
 
 
-def test_searchparam_prefix_le(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+)
+def test_searchparam_prefix_le(store: FHIRStore, index_resources):
     """Handle :le prefix
     the value for the parameter in the resource is less or equal to the provided value
     """
-    pass
+    # number
+    result = store.search("MolecularSequence", query_string="variant-start=le128273729")
+    assert len(result.entry) == 1
+    result = store.search("MolecularSequence", query_string="variant-start=le128273725")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("MolecularSequence", query_string="variant-start=le128273721")
+
+    # date
+    result = store.search("Patient", query_string="birthdate=le1995-12-28")
+    assert len(result.entry) == 1
+    result = store.search("Patient", query_string="birthdate=le1995-12-25")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Patient", query_string="birthdate=le1995-12-24")
+
+    # quantity
+    result = store.search("Observation", query_string="value-quantity=le67")
+    assert len(result.entry) == 1
+    result = store.search("Observation", query_string="value-quantity=le66.899999999999991")
+    assert len(result.entry) == 1
+
+    with raises(fhirpath.exceptions.NoResultFound):
+        result = store.search("Observation", query_string="value-quantity=le66")
 
 
 def test_searchparam_prefix_sa(store: FHIRStore):
