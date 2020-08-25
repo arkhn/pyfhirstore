@@ -33,6 +33,7 @@ def store():
     fhirstore.bootstrap(resource="MedicationRequest")
     fhirstore.bootstrap(resource="CodeSystem")
     fhirstore.bootstrap(resource="MolecularSequence")
+    fhirstore.bootstrap(resource="Location")
 
     return fhirstore
 

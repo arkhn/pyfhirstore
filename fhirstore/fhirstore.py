@@ -294,7 +294,7 @@ class FHIRStore:
             eg: {"gender":"female"}, with possible modifiers {"address.city:exact":"Paris"}.
             If a search is made one field with multiple arguments (eg: language is French
             OR English), params should be a payload of type {"multiple": {"language":
-            ["French", "English"]}}. 
+            ["French", "English"]}}.
             If a search has more than one field queried, params should be a payload of
             the form: {"address.city": ["Paris"], "multiple":
             {"language": ["French", "English"]}}.
@@ -304,61 +304,8 @@ class FHIRStore:
         if resource_type:
             self.validate_resource_type(resource_type)
 
-        params = (
-            Search.parse_query_string(query_string)
-            if query_string is not None
-            else MultiDict(params.items())
-        )
-
-        # eg: ?_has:diagnosticsReport:subject:code.coding.code=
-        # pop _has params and parse them
-        _has = []
-        for key in [k for k in params.keys() if k.startswith("_has:")]:
-            value = params.pop(key)
-            parts = key.split(":")
-            from_resource_type = parts[1]
-            ref_attribute = parts[2]
-            target_searchparam = parts[3]
-            _has.append(
-                {
-                    "resource_type": from_resource_type,
-                    "ref_attribute": ref_attribute,
-                    "value": value,
-                    "target_searchparam": target_searchparam,
-                }
-            )
-
-        # pop _include params and parse them
-        _include = []
-        for i in params.popall("_include", []):
-            parts = i.split(":")
-            from_resource_type = parts[0]
-            ref_attribute = parts[1]
-            _include.append({"resource_type": from_resource_type, "ref_attribute": ref_attribute})
-
-        # print("_has", _has)
-        # print("_include", _include)
-        # print(dict(params))
-
-        # send _has request
-        # http://localhost:5000/Encounter?_has:Encounter:serviceProvider:name=test&_count=1
-        # for _h in _has:
-        # m = get_fhir_model_class(_h["resource_type"])
-        # print("model :: ", m)
-        # search_context = SearchContext(self.search_engine, _h["resource_type"])
-        # fhir_search = Search(
-        #     search_context,
-        #     query_string=query_string,
-        #     params={_h["target_searchparam"]: _h["value"]},
-        # )
-        # bundle = fhir_search()
-        # print("res _has", bundle.as_json())
-        # inner_ids = []
-        # for e in bundle.entry:
-        #     inner_ids.append(e)
-
         search_context = SearchContext(self.search_engine, resource_type)
-        fhir_search = Search(search_context, params=dict(params))
+        fhir_search = Search(search_context, query_string=query_string, params=params)
         try:
             return fhir_search()
         except elasticsearch.exceptions.NotFoundError as e:
@@ -375,7 +322,6 @@ class FHIRStore:
                 }
             )
         except elasticsearch.exceptions.RequestError as e:
-            # raise Exception(e.info["error"]["root_cause"])
             return OperationOutcome(
                 {
                     "issue": [

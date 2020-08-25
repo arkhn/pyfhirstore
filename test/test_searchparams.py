@@ -4,11 +4,12 @@ from pytest import raises
 
 import fhirpath
 from fhir.resources.bundle import Bundle
+from fhir.resources.operationoutcome import OperationOutcome
 
 from fhirstore import FHIRStore, NotFoundError
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+
 
 # These tests assumes an already existing store exists
 # (store.bootstrap was run)
@@ -26,16 +27,14 @@ def index_resources(request, es_client):
         # read and index the resource is ES
         with open(f"test/fixtures/{path}") as f:
             r = json.load(f)
-            res = es_client.index(
-                index="fhirstore", body={r["resourceType"]: r}, refresh="wait_for"
-            )
+            res = es_client.index(index="fhirstore", body={r["resourceType"]: r}, refresh=True)
             indexed_resource_ids.append(res["_id"])
 
     yield r
 
     # cleanup ES
     for r_id in indexed_resource_ids:
-        es_client.delete("fhirstore", r_id, refresh="wait_for")
+        es_client.delete("fhirstore", r_id, refresh=True)
 
 
 def test_search_bad_resource_type(store: FHIRStore):
@@ -111,7 +110,18 @@ def test_searchparam_multiple(store: FHIRStore, index_resources):
 @pytest.mark.resources("patient-example.json")
 def test_searchparam_and(store: FHIRStore, index_resources):
     """Search on a resource matching multiple criterias
-    All parameters must be satisfied (AND opeation)
+    All parameters must be satisfied (AND operation)
+    """
+    result = store.search("Patient", query_string="given=Duck&gender=male")
+    assert result.total == 1
+    assert "Duck" in result.entry[0].resource.name[0].given
+    assert result.entry[0].resource.gender == "male"
+
+
+@pytest.mark.resources("patient-example.json")
+def test_searchparam_and_same_list_field(store: FHIRStore, index_resources):
+    """Search on a resource where an array field must contain multiple values.
+    All parameters must be satisfied (AND operation)
     """
     result = store.search("Patient", query_string="given=Duck&given=Ducky")
     assert result.total == 1
@@ -1025,11 +1035,13 @@ def test_searchparam_prefix_ap(store: FHIRStore):
 
 
 @pytest.mark.skip()
-def test_searchparam_chained_simple(store: FHIRStore):
+@pytest.mark.resources("patient-example.json", "observation-bodyheight-example.json")
+def test_searchparam_chained_simple(store: FHIRStore, index_resources):
     """Handle a single chained parameter
     DiagnosticReport?subject.name=peter
     """
-    pass
+    result = store.search("Observation", query_string="subject.name=peter")
+    assert len(result.entry) == 1
 
 
 @pytest.mark.skip()
@@ -1155,7 +1167,7 @@ def test_searchparam_sort(store: FHIRStore, index_resources):
     # several fields
     result = store.search("Patient", query_string="_sort=address-city,-family")
     result_ids = [entry.resource.id for entry in result.entry]
-    assert result_ids == ["example", "xcda", "pat1"]
+    assert result_ids == ["example", "pat2", "pat1"]
 
 
 # PAGE COUNT
@@ -1208,13 +1220,61 @@ def test_searchparam_count_zero(store: FHIRStore, index_resources):
 #     - (Optional) A specific of type of target resource (for when the search parameter refers to
 #       multiple possible target types)
 
+# logging.basicConfig(level=logging.DEBUG)
 
-@pytest.mark.skip()
-def test_searchparam_include(store: FHIRStore):
-    """Handle _include
-    MedicationRequest?_include=MedicationRequest:patient
-    """
-    pass
+
+@pytest.mark.resources(
+    "patient-example.json",
+    "patient-example-2.json",
+    "observation-bodyheight-example.json",
+    "observation-glucose.json",
+)
+def test_searchparam_include(store: FHIRStore, index_resources):
+    """Handle _include while specifying the target type"""
+    result = store.search(
+        "Observation", query_string="_id=body-height&_include=Observation:subject:Patient",
+    )
+
+    # both the observation and the patient should have been returned
+    assert len(result.entry) == 2
+
+    assert result.entry[0].resource.resource_type == "Observation"
+    assert result.entry[0].search.mode == "match"
+
+    assert result.entry[1].resource.resource_type == "Patient"
+    assert result.entry[1].search.mode == "include"
+
+
+@pytest.mark.resources(
+    "patient-example.json",
+    "patient-example-2.json",
+    "observation-bodyheight-example.json",
+    "observation-glucose.json",
+    "observation-vp-oyster.json",
+    "location-patient-home.json",
+)
+def test_searchparam_include_untyped(store: FHIRStore, index_resources):
+    """Handle _include without specifying the target type"""
+    result = store.search("Observation", query_string="_include=Observation:subject",)
+
+    # both the observation and the patient should have been returned
+    assert len(result.entry) == 6
+
+    assert result.entry[0].resource.resource_type == "Observation"
+    assert result.entry[0].search.mode == "match"
+    assert result.entry[1].resource.resource_type == "Observation"
+    assert result.entry[1].search.mode == "match"
+    assert result.entry[2].resource.resource_type == "Observation"
+    assert result.entry[2].search.mode == "match"
+
+    assert result.entry[3].resource.resource_type == "Patient"
+    assert result.entry[3].search.mode == "include"
+
+    assert result.entry[4].resource.resource_type == "Patient"
+    assert result.entry[4].search.mode == "include"
+
+    assert result.entry[5].resource.resource_type == "Location"
+    assert result.entry[5].search.mode == "include"
 
 
 @pytest.mark.skip()
@@ -1316,9 +1376,16 @@ def test_searchparam_elements(store: FHIRStore, index_resources):
     assert result.entry[0].resource.maritalStatus is None
 
 
-@pytest.mark.skip()
-def test_searchparam_element_missing_required(store: FHIRStore):
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_element_missing_required(store: FHIRStore, index_resources):
     """Handle _elements
     Clients must select all required attributes otherwise an error is returned.
     """
-    pass
+    result = store.search("Observation", query_string="_elements=identifier")
+
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 2
+    assert result.issue[0].severity == "error"
+    assert result.issue[0].diagnostics == "field required: Observation.code"
+    assert result.issue[1].severity == "error"
+    assert result.issue[1].diagnostics == "field required: Observation.status"
