@@ -36,8 +36,8 @@
   "issued": "2017-10-14T23:11:24Z",
   "performer": [
     {
-      "reference": "Practitioner/f005",
-      "display": "A. Langeveld"
+      "reference": "Practitioner/pract1",
+      "type": "Practitioner"
     }
   ],
   "valueCodeableConcept": {

@@ -1254,8 +1254,42 @@ def test_searchparam_include(store: FHIRStore, index_resources):
     "location-patient-home.json",
 )
 def test_searchparam_include_untyped(store: FHIRStore, index_resources):
-    """Handle _include without specifying the target type"""
+    """Handle _include while specifying the target type"""
     result = store.search("Observation", query_string="_include=Observation:subject",)
+
+    assert len(result.entry) == 6
+
+    assert result.entry[0].resource.resource_type == "Observation"
+    assert result.entry[0].search.mode == "match"
+    assert result.entry[1].resource.resource_type == "Observation"
+    assert result.entry[1].search.mode == "match"
+    assert result.entry[2].resource.resource_type == "Observation"
+    assert result.entry[2].search.mode == "match"
+
+    assert result.entry[3].resource.resource_type == "Patient"
+    assert result.entry[3].search.mode == "include"
+
+    assert result.entry[4].resource.resource_type == "Patient"
+    assert result.entry[4].search.mode == "include"
+
+    assert result.entry[5].resource.resource_type == "Location"
+    assert result.entry[5].search.mode == "include"
+
+
+@pytest.mark.resources(
+    "patient-example.json",
+    "patient-example-2.json",
+    "observation-bodyheight-example.json",
+    "observation-glucose.json",
+    "observation-vp-oyster.json",
+    "location-patient-home.json",
+)
+def test_searchparam_include_many_types(store: FHIRStore, index_resources):
+    """Handle _include and specify mutliple target types"""
+    result = store.search(
+        "Observation",
+        query_string="_include=Observation:subject:Patient&_include=Observation:subject:Location",
+    )
 
     # both the observation and the patient should have been returned
     assert len(result.entry) == 6
@@ -1275,6 +1309,37 @@ def test_searchparam_include_untyped(store: FHIRStore, index_resources):
 
     assert result.entry[5].resource.resource_type == "Location"
     assert result.entry[5].search.mode == "include"
+
+
+@pytest.mark.resources(
+    "patient-example.json",
+    "location-patient-home.json",
+    "observation-bodyheight-example.json",
+    "observation-vp-oyster.json",
+    "practitioner-example.json",
+)
+def test_searchparam_include_many_references(store: FHIRStore, index_resources):
+    """Handle _include multiple references"""
+    result = store.search(
+        "Observation", query_string="_include=Observation:subject&_include=Observation:performer",
+    )
+
+    # both the observation and the patient should have been returned
+    assert len(result.entry) == 5
+
+    assert result.entry[0].resource.resource_type == "Observation"
+    assert result.entry[0].search.mode == "match"
+    assert result.entry[1].resource.resource_type == "Observation"
+    assert result.entry[1].search.mode == "match"
+
+    assert result.entry[2].resource.resource_type == "Patient"
+    assert result.entry[2].search.mode == "include"
+
+    assert result.entry[3].resource.resource_type == "Location"
+    assert result.entry[3].search.mode == "include"
+
+    assert result.entry[4].resource.resource_type == "Practitioner"
+    assert result.entry[4].search.mode == "include"
 
 
 @pytest.mark.skip()

@@ -32,8 +32,8 @@
   "issued": "2013-04-03T15:30:10+01:00",
   "performer": [
     {
-      "reference": "Practitioner/f005",
-      "display": "A. Langeveld"
+      "reference": "Practitioner/pract1",
+      "type": "Practitioner"
     }
   ],
   "valueQuantity": {

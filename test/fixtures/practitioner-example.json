@@ -1,6 +1,6 @@
 {
   "resourceType": "Practitioner",
-  "id": "example",
+  "id": "pract1",
   "text": {
     "status": "generated",
     "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">\n      <p>Dr Adam Careful is a Referring Practitioner for Acme Hospital from 1-Jan 2012 to 31-Mar\n        2012</p>\n    </div>"
@@ -15,20 +15,14 @@
   "name": [
     {
       "family": "Careful",
-      "given": [
-        "Adam"
-      ],
-      "prefix": [
-        "Dr"
-      ]
+      "given": ["Adam"],
+      "prefix": ["Dr"]
     }
   ],
   "address": [
     {
       "use": "home",
-      "line": [
-        "534 Erewhon St"
-      ],
+      "line": ["534 Erewhon St"],
       "city": "PleasantVille",
       "state": "Vic",
       "postalCode": "3999"
