@@ -1113,6 +1113,17 @@ def test_searchparam_no_type_provided(store: FHIRStore):
     pass
 
 
+@pytest.mark.skip()
+def test_searchparam_no_type_provided_bad_param(store: FHIRStore):
+    """Handle searching on multiple resource types
+    GET [base]/?params...
+    """
+    pass
+
+
+# logging.basicConfig(level=logging.DEBUG)
+
+
 @pytest.mark.resources("patient-example.json", "practitioner-example.json")
 def test_searchparam_mutltiple_types(store: FHIRStore, index_resources):
     """Handle searching on multiple resource types while restraining the returned resources
@@ -1128,12 +1139,19 @@ def test_searchparam_mutltiple_types(store: FHIRStore, index_resources):
         result = store.search(query_string="_type=Patient,Practitioner&address-city=NotFound")
 
 
-@pytest.mark.skip()
 def test_searchparam_mutltiple_types_bad_param(store: FHIRStore):
     """Should raise an error if the used search parameters are not
     shared across the entire set of specified resources
     """
-    pass
+    with raises(
+        fhirpath.exceptions.ValidationError,
+        match=(
+            "No search definition is available for search "
+            "parameter ``address-city`` on Resource ``Observation``."
+        ),
+    ):
+        # TODO is it the exception we want?
+        result = store.search(query_string="_type=Patient,Observation&address-city=NotFound")
 
 
 # SORTING RESULTS
@@ -1219,8 +1237,6 @@ def test_searchparam_count_zero(store: FHIRStore, index_resources):
 #     - The name of the search parameter which must be of type reference
 #     - (Optional) A specific of type of target resource (for when the search parameter refers to
 #       multiple possible target types)
-
-# logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.mark.resources(
