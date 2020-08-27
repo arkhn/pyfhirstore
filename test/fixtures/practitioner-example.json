@@ -53,5 +53,12 @@
         "display": "Example University"
       }
     }
-  ]
+  ],
+  "meta": {
+    "tag": [
+      {
+        "code": "testme"
+      }
+    ]
+  }
 }

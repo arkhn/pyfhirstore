@@ -6,7 +6,7 @@ from fhir.resources.operationoutcome import OperationOutcome
 
 from fhirstore import FHIRStore, NotFoundError
 
-# import logging
+import logging
 
 
 def assert_empty_bundle(result):
@@ -1160,29 +1160,36 @@ def test_searchparam_list(store: FHIRStore):
 # search parameters shared across the entire set of specified resources may be used
 
 
-@pytest.mark.skip()
-def test_searchparam_no_type_provided(store: FHIRStore):
+@pytest.mark.resources("patient-example.json", "practitioner-example.json")
+def test_searchparam_no_type_provided(store: FHIRStore, index_resources):
     """Handle searching on multiple resource types
-    GET [base]/?params...
+    GET [base]?params...
     """
-    pass
+    result = store.search(query_string="_tag=testme")
+    assert len(result.entry) == 2
+
+    result = store.search(query_string="_tag=notfound")
+    assert_empty_bundle(result)
 
 
-@pytest.mark.skip()
 def test_searchparam_no_type_provided_bad_param(store: FHIRStore):
     """Handle searching on multiple resource types
-    GET [base]/?params...
+    GET [base]?params...
     """
-    pass
-
-
+    result = store.search(query_string="address-city=Verzon")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "No search definition is available for search parameter "
+        "``address-city`` on Resource ``Resource``."
+    )
 # logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.mark.resources("patient-example.json", "practitioner-example.json")
 def test_searchparam_mutltiple_types(store: FHIRStore, index_resources):
     """Handle searching on multiple resource types while restraining the returned resources
-    GET [base]/?_type=Observation,Condition&other params...
+    GET [base]?_type=Observation,Condition&other params...
     """
     result = store.search(query_string="_type=Patient,Practitioner&address-city=Verson")
     assert len(result.entry) == 1
@@ -1198,7 +1205,7 @@ def test_searchparam_mutltiple_types_bad_param(store: FHIRStore):
     """Should raise an error if the used search parameters are not
     shared across the entire set of specified resources
     """
-    result = store.search(query_string="_type=Patient,Observation&address-city=NotFound")
+    result = store.search(query_string="_type=Patient,Observation&address-city=Verson")
     assert isinstance(result, OperationOutcome)
     assert len(result.issue) == 1
     assert (
