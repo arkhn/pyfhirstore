@@ -5,11 +5,11 @@ import elasticsearch
 import json
 import pydantic
 
-from multidict import MultiDict
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
 from tqdm import tqdm
 
+import fhirpath
 from fhirpath.search import SearchContext, Search
 
 from fhir.resources import construct_fhir_element
@@ -310,7 +310,7 @@ class FHIRStore:
             return fhir_search()
         except elasticsearch.exceptions.NotFoundError as e:
             return OperationOutcome(
-                {
+                **{
                     "issue": [
                         {
                             "severity": "error",
@@ -323,7 +323,7 @@ class FHIRStore:
             )
         except elasticsearch.exceptions.RequestError as e:
             return OperationOutcome(
-                {
+                **{
                     "issue": [
                         {
                             "severity": "error",
@@ -335,7 +335,7 @@ class FHIRStore:
             )
         except elasticsearch.exceptions.AuthenticationException as e:
             return OperationOutcome(
-                {
+                **{
                     "issue": [
                         {
                             "severity": "error",
@@ -357,6 +357,10 @@ class FHIRStore:
                     }
                 )
             return OperationOutcome(**{"issue": issues})
+        except fhirpath.exceptions.ValidationError as e:
+            return OperationOutcome(
+                **{"issue": [{"severity": "error", "code": "invalid", "diagnostics": str(e)}]}
+            )
 
     def upload_bundle(self, bundle):
         """

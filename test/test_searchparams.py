@@ -1,14 +1,18 @@
 import pytest
 import json
-from pytest import raises
 
-import fhirpath
 from fhir.resources.bundle import Bundle
 from fhir.resources.operationoutcome import OperationOutcome
 
 from fhirstore import FHIRStore, NotFoundError
 
-import logging
+# import logging
+
+
+def assert_empty_bundle(result):
+    assert isinstance(result, Bundle)
+    assert result.total == 0
+    assert len(result.entry) == 0
 
 
 # These tests assumes an already existing store exists
@@ -40,7 +44,7 @@ def index_resources(request, es_client):
 def test_search_bad_resource_type(store: FHIRStore):
     """search() raises error if resource type is unknown"""
 
-    with raises(NotFoundError, match='unsupported FHIR resource: "unknown"'):
+    with pytest.raises(NotFoundError, match='unsupported FHIR resource: "unknown"'):
         store.search("unknown", params={})
 
 
@@ -72,20 +76,21 @@ def test_search_all_of_qs(store: FHIRStore, index_resources):
 def test_search_not_found(store: FHIRStore):
     """Check that an exception is raised if no results is found.
     """
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="gender=male")
+    result = store.search("Patient", query_string="gender=male")
+    assert_empty_bundle(result)
 
 
 def test_searchparam_not_exist(store: FHIRStore):
     """An error should be returned if a provided search parameter is unknown
     """
 
-    with raises(
-        fhirpath.exceptions.ValidationError,
-        match="No search definition is available for "
-        "search parameter ``kouakou`` on Resource ``Patient``",
-    ):
-        store.search("Patient", query_string="kouakou=XXX")
+    result = store.search("Patient", query_string="kouakou=XXX")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "No search definition is available for search parameter "
+        "``kouakou`` on Resource ``Patient``."
+    )
 
 
 @pytest.mark.resources("patient-example.json")
@@ -118,6 +123,7 @@ def test_searchparam_and(store: FHIRStore, index_resources):
     assert result.entry[0].resource.gender == "male"
 
 
+@pytest.mark.skip()
 @pytest.mark.resources("patient-example.json")
 def test_searchparam_and_same_list_field(store: FHIRStore, index_resources):
     """Search on a resource where an array field must contain multiple values.
@@ -163,12 +169,13 @@ def test_searchparam_and_or_combined(store: FHIRStore, index_resources):
 def test_searchparam_casing(store: FHIRStore):
     """A search parameter must be case sensitive
     """
-    with raises(
-        fhirpath.exceptions.ValidationError,
-        match="No search definition is available for search parameter "
-        "``Given`` on Resource ``Patient``.",
-    ):
-        store.search("Patient", query_string="Given=Duck")
+    result = store.search("Patient", query_string="Given=Duck")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "No search definition is available for search parameter "
+        "``Given`` on Resource ``Patient``."
+    )
 
 
 @pytest.mark.resources("patient-example.json")
@@ -256,16 +263,18 @@ def test_searchparam_standard_tag(store: FHIRStore, index_resources):
         "Patient", query_string="_tag=http://terminology.hl7.org/CodeSystem/v3-ActReason|HTEST"
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search(
-            "Patient", query_string="_tag=http://terminology.hl7.org/CodeSystem/v3-ActReason|WHAT"
-        )
+
+    result = store.search(
+        "Patient", query_string="_tag=http://terminology.hl7.org/CodeSystem/v3-ActReason|WHAT"
+    )
+    assert_empty_bundle(result)
 
     # _tag=code
     result = store.search("Patient", query_string="_tag=HTEST")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="_tag=WHAT")
+
+    result = store.search("Patient", query_string="_tag=WHAT")
+    assert_empty_bundle(result)
 
 
 # fhirpath does not index Resource.text.div (Narrative) yet
@@ -279,8 +288,8 @@ def test_searchparam_standard_text(store: FHIRStore, index_resources):
     result = store.search("Patient", query_string="_text=DUCK")
     assert result.total == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="_text=rocket")
+    result = store.search("Patient", query_string="_text=rocket")
+    assert_empty_bundle(result)
 
 
 # custom filtering is not implemented
@@ -304,8 +313,9 @@ def test_searchparam_type_string(store: FHIRStore, index_resources):
     # regular
     result = store.search("Patient", query_string="family=Donald")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="family=Unknown")
+
+    result = store.search("Patient", query_string="family=Unknown")
+    assert_empty_bundle(result)
 
     # accent-insensitive
     result = store.search("Patient", query_string="family=Donàld")
@@ -341,15 +351,17 @@ def test_searchparam_type_token_identifier(store: FHIRStore, index_resources):
     # irrespective of the value of the system property
     result = store.search("Patient", query_string="identifier=654321")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="identifier=654322")
+
+    result = store.search("Patient", query_string="identifier=654322")
+    assert_empty_bundle(result)
 
     # [parameter]=[system]|[code]: the value of [code] matches an Identifier.value,
     # and the value of [system] matches the system property of the Identifier
     result = store.search("Patient", query_string="identifier=urn:oid:0.1.2.3.4.5.6.7|654321")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="identifier=other|654321")
+
+    result = store.search("Patient", query_string="identifier=other|654321")
+    assert_empty_bundle(result)
 
     # TODO: not working yet, when omitting the system, the search is applied only on the value
     # (it should also filter by empty system)
@@ -357,15 +369,17 @@ def test_searchparam_type_token_identifier(store: FHIRStore, index_resources):
     # Identifier has no system property
     result = store.search("Patient", query_string="identifier=|654321")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="identifier=|654322")
+
+    result = store.search("Patient", query_string="identifier=|654322")
+    assert_empty_bundle(result)
 
     # [parameter]=[system]|: any element where the value of [system] matches the system property of
     # the Identifier
     result = store.search("Patient", query_string="identifier=urn:oid:0.1.2.3.4.5.6.7|")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="identifier=other|")
+
+    result = store.search("Patient", query_string="identifier=other|")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources("observation-bodyheight-example.json")
@@ -381,8 +395,9 @@ def test_searchparam_type_token_code(store: FHIRStore, index_resources):
     # irrespective of the value of the system property
     result = store.search("Observation", query_string="category=vital-signs")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="category=other")
+
+    result = store.search("Observation", query_string="category=other")
+    assert_empty_bundle(result)
 
     # [parameter]=[system]|[code]: the value of [code] matches a Coding.code,
     # and the value of [system] matches the system property of the Coding
@@ -392,8 +407,9 @@ def test_searchparam_type_token_code(store: FHIRStore, index_resources):
         "observation-category|vital-signs",
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="category=other|vital-signs")
+
+    result = store.search("Observation", query_string="category=other|vital-signs")
+    assert_empty_bundle(result)
 
     # TODO: not working yet, when omitting the system, the search is applied only on the value
     # (it should also filter by empty system)
@@ -401,8 +417,9 @@ def test_searchparam_type_token_code(store: FHIRStore, index_resources):
     # Coding has no system property
     result = store.search("Observation", query_string="category=|vital-signs")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="category=|other")
+
+    result = store.search("Observation", query_string="category=|other")
+    assert_empty_bundle(result)
 
     # [parameter]=[system]|: any element where the value of [system] matches the system property of
     # the Coding
@@ -411,8 +428,9 @@ def test_searchparam_type_token_code(store: FHIRStore, index_resources):
         query_string="category=http://terminology.hl7.org/CodeSystem/observation-category|",
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="category=other|")
+
+    result = store.search("Observation", query_string="category=other|")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources("patient-example.json")
@@ -425,26 +443,30 @@ def test_searchparam_type_date_date(store: FHIRStore, index_resources):
     assert result.total == 1
     result = store.search("Patient", query_string="birthdate=eq1995-12-25")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="birthdate=2009-09-09")
+
+    result = store.search("Patient", query_string="birthdate=2009-09-09")
+    assert_empty_bundle(result)
 
     # gt
     result = store.search("Patient", query_string="birthdate=gt1990-01-01")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="birthdate=gt2000-01-01")
+
+    result = store.search("Patient", query_string="birthdate=gt2000-01-01")
+    assert_empty_bundle(result)
 
     # lt
     result = store.search("Patient", query_string="birthdate=lt2000-01-01")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="birthdate=lt1990-01-01")
+
+    result = store.search("Patient", query_string="birthdate=lt1990-01-01")
+    assert_empty_bundle(result)
 
     # ne
     result = store.search("Patient", query_string="birthdate=ne1569-12-25")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="birthdate=ne1995-12-25")
+
+    result = store.search("Patient", query_string="birthdate=ne1995-12-25")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources("patient-example.json")
@@ -458,8 +480,9 @@ def test_searchparam_type_date_datetime(store: FHIRStore, index_resources):
     # search on Observation.effective (which does not exist).
     # result = store.search("Observation", query_string="date=1999-07-02")
     # assert result.total == 1
-    # with raises(fhirpath.exceptions.NoResultFound):
-    #     store.search("Observation", query_string="date=2009-09-09")
+    #
+    # result = store.search("Observation", query_string="date=2009-09-09")
+    # assert_empty_bundle(result)
 
     # TODO: SEARCH ON "datetime" TYPE WITHOUT SPECIFYING HOURS !
     # eg: Patient?death-date=2098-01-01
@@ -468,26 +491,30 @@ def test_searchparam_type_date_datetime(store: FHIRStore, index_resources):
     assert result.total == 1
     result = store.search("Patient", query_string="death-date=eq2098-01-01T12:10:30")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="death-date=2009-09-09T12:10:30")
+
+    result = store.search("Patient", query_string="death-date=2009-09-09T12:10:30")
+    assert_empty_bundle(result)
 
     # gt
     result = store.search("Patient", query_string="death-date=gt1990-01-01T00:00:00")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="death-date=gt2100-01-01T00:00:00")
+
+    result = store.search("Patient", query_string="death-date=gt2100-01-01T00:00:00")
+    assert_empty_bundle(result)
 
     # lt
     result = store.search("Patient", query_string="death-date=lt2100-01-01T00:00:00")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="death-date=lt1990-01-01T00:00:00")
+
+    result = store.search("Patient", query_string="death-date=lt1990-01-01T00:00:00")
+    assert_empty_bundle(result)
 
     # ne
     result = store.search("Patient", query_string="death-date=ne1990-01-01T00:00:00")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="death-date=ne2098-01-01T12:10:30")
+
+    result = store.search("Patient", query_string="death-date=ne2098-01-01T12:10:30")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.skip()
@@ -515,16 +542,18 @@ def test_searchparam_type_reference_literal(store: FHIRStore, index_resources):
     # a local reference (i.e. a relative reference)
     result = store.search("Observation", query_string="subject=pat1")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="subject=patUnknown")
+
+    result = store.search("Observation", query_string="subject=patUnknown")
+    assert_empty_bundle(result)
 
     # [parameter]=[type]/[id] the logical [id] of a resourceof a specified type using a local
     # reference (i.e. a relative reference), for when the reference can point to different
     # types of resources (e.g. Observation.subject)
     result = store.search("Observation", query_string="subject=Patient/pat1")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="subject=Patient/patUnknown")
+
+    result = store.search("Observation", query_string="subject=Patient/patUnknown")
+    assert_empty_bundle(result)
 
     # [parameter]=[url] where the [url] is an absolute URL - a reference to a resource by its
     # absolute location, or by it's canonical URL
@@ -532,10 +561,11 @@ def test_searchparam_type_reference_literal(store: FHIRStore, index_resources):
         "Observation", query_string="encounter=https://staging.arkhn.om/api/Encounter/f201"
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search(
-            "Observation", query_string="encounter=https://staging.arkhn.om/api/Encounter/unknown"
-        )
+
+    result = store.search(
+        "Observation", query_string="encounter=https://staging.arkhn.om/api/Encounter/unknown"
+    )
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources("observation-bodyheight-example.json")
@@ -548,8 +578,9 @@ def test_searchparam_type_reference_identifier(store: FHIRStore, index_resources
     # [param-ref]:identifier=[value]
     result = store.search("Observation", query_string="subject:identifier=654321")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="subject:identifier=123456789")
+
+    result = store.search("Observation", query_string="subject:identifier=123456789")
+    assert_empty_bundle(result)
 
     # [param-ref]:identifier=[system]|[value]: the value of [code] matches an
     # reference.identifier.value, and the value of [system] matches the system
@@ -558,10 +589,11 @@ def test_searchparam_type_reference_identifier(store: FHIRStore, index_resources
         "Observation", query_string="subject:identifier=urn:oid:0.1.2.3.4.5.6.7|654321"
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search(
-            "Observation", query_string="subject:identifier=urn:oid:0.1.2.3.4.5.6.7|123456789"
-        )
+
+    result = store.search(
+        "Observation", query_string="subject:identifier=urn:oid:0.1.2.3.4.5.6.7|123456789"
+    )
+    assert_empty_bundle(result)
 
     # TODO: not working yet, when omitting the system, the search is applied only on the value
     # (it should also filter by empty system)
@@ -569,15 +601,17 @@ def test_searchparam_type_reference_identifier(store: FHIRStore, index_resources
     # and the Identifier has no system property
     result = store.search("Observation", query_string="subject:identifier=|654321")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="subject:identifier=|123456789")
+
+    result = store.search("Observation", query_string="subject:identifier=|123456789")
+    assert_empty_bundle(result)
 
     # [param-ref]:identifier=[system]|: any element where the value of [system] matches the
     # system property of the Identifier
     result = store.search("Observation", query_string="subject:identifier=urn:oid:0.1.2.3.4.5.6.7|")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="subject:identifier=other|")
+
+    result = store.search("Observation", query_string="subject:identifier=other|")
+    assert_empty_bundle(result)
 
 
 # TODO: the "$" syntax is not yet handled in fhirpath
@@ -596,14 +630,16 @@ def test_searchparam_type_quantity(store: FHIRStore, index_resources):
     # all observations with a value of exactly 66.899999 (irrespective of the unit)
     result = store.search("Observation", query_string="value-quantity=66.899999")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="value-quantity=9")
+
+    result = store.search("Observation", query_string="value-quantity=9")
+    assert_empty_bundle(result)
 
     # all observations with a value greater/lower than 50 (irrespective of the unit)
     result = store.search("Observation", query_string="value-quantity=gt50")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="value-quantity=lt50")
+
+    result = store.search("Observation", query_string="value-quantity=lt50")
+    assert_empty_bundle(result)
 
     # Search for all the observations with a value of 66.899999(+/-0.05)
     # where "[in_i]" is understood as a UCUM unit (system/code)
@@ -611,22 +647,24 @@ def test_searchparam_type_quantity(store: FHIRStore, index_resources):
         "Observation", query_string="value-quantity=66.899999|http://unitsofmeasure.org|[in_i]",
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search(
-            "Observation",
-            query_string="value-quantity=66.899999|http://unitsofmeasure.org|[other]",
-        )
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search(
-            "Observation", query_string="value-quantity=66.899999|http://other.org|[in_i]",
-        )
+
+    result = store.search(
+        "Observation", query_string="value-quantity=66.899999|http://unitsofmeasure.org|[other]",
+    )
+    assert_empty_bundle(result)
+
+    result = store.search(
+        "Observation", query_string="value-quantity=66.899999|http://other.org|[in_i]",
+    )
+    assert_empty_bundle(result)
 
     # Search for all the observations with a value of 5.4(+/-0.05) mg where the
     # unit - either the code (code) or the stated human unit (unit) are "in"
     result = store.search("Observation", query_string="value-quantity=66.899999||in")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Observation", query_string="value-quantity=66.899999||other")
+
+    result = store.search("Observation", query_string="value-quantity=66.899999||other")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources("codesystem-example.json")
@@ -637,8 +675,9 @@ def test_searchparam_type_uri(store: FHIRStore, index_resources):
         "CodeSystem", query_string="system=http://hl7.org/fhir/CodeSystem/example"
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("CodeSystem", query_string="system=http://hl7.org/fhir/CodeSystem/other")
+
+    result = store.search("CodeSystem", query_string="system=http://hl7.org/fhir/CodeSystem/other")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources("codesystem-example.json")
@@ -647,8 +686,11 @@ def test_searchparam_type_uri_below(store: FHIRStore, index_resources):
     """
     result = store.search("CodeSystem", query_string="system:below=http://hl7.org/fhir/")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/Arkhn")
+
+    result = store.search(
+        "CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/Arkhn"
+    )
+    assert_empty_bundle(result)
 
     result = store.search(
         "CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/example"
@@ -666,8 +708,9 @@ def test_searchparam_type_uri_above(store: FHIRStore, index_resources):
         "CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/example/24"
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/")
+
+    result = store.search("CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/")
+    assert_empty_bundle(result)
 
 
 # SEARCH PARAMETERS MODIFIERS
@@ -684,13 +727,15 @@ def test_searchparam_modifier_missing(store: FHIRStore, index_resources):
     """
     result = store.search("Patient", query_string="general-practitioner:missing=true")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="general-practitioner:missing=false")
+
+    result = store.search("Patient", query_string="general-practitioner:missing=false")
+    assert_empty_bundle(result)
 
     result = store.search("Patient", query_string="gender:missing=false")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="gender:missing=true")
+
+    result = store.search("Patient", query_string="gender:missing=true")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources("patient-example.json")
@@ -702,14 +747,14 @@ def test_searchparam_modifier_exact(store: FHIRStore, index_resources):
     result = store.search("Patient", query_string="family:exact=Donald")
     assert result.total == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="family:exact=Other")
+    result = store.search("Patient", query_string="family:exact=Other")
+    assert_empty_bundle(result)
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="family:exact=donald")
+    result = store.search("Patient", query_string="family:exact=donald")
+    assert_empty_bundle(result)
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="family:exact=Donàld")
+    result = store.search("Patient", query_string="family:exact=Donàld")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources("patient-example.json")
@@ -736,11 +781,11 @@ def test_searchparam_modifier_contains(store: FHIRStore, index_resources):
     result = store.search("Patient", query_string="family:contains=dOnàld")
     assert result.total == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="family:contains=Dan")
+    result = store.search("Patient", query_string="family:contains=Dan")
+    assert_empty_bundle(result)
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("Patient", query_string="family:contains=dnoald")
+    result = store.search("Patient", query_string="family:contains=dnoald")
+    assert_empty_bundle(result)
 
 
 # TODO: we will need this at some point
@@ -770,8 +815,11 @@ def test_searchparam_modifier_below(store: FHIRStore, index_resources):
     """
     result = store.search("CodeSystem", query_string="system:below=http://hl7.org/fhir/")
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/Arkhn")
+
+    result = store.search(
+        "CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/Arkhn"
+    )
+    assert_empty_bundle(result)
 
     result = store.search(
         "CodeSystem", query_string="system:below=http://hl7.org/fhir/CodeSystem/example"
@@ -791,8 +839,9 @@ def test_searchparam_modifier_above(store: FHIRStore, index_resources):
         "CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/example/24"
     )
     assert result.total == 1
-    with raises(fhirpath.exceptions.NoResultFound):
-        store.search("CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/")
+
+    result = store.search("CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/")
+    assert_empty_bundle(result)
 
 
 # SEARCH PARAMETERS PREFIXES
@@ -811,22 +860,22 @@ def test_searchparam_prefix_eq(store: FHIRStore, index_resources):
     result = store.search("MolecularSequence", query_string="variant-start=eq128273725")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("MolecularSequence", query_string="variant-start=eq128275")
+    result = store.search("MolecularSequence", query_string="variant-start=eq128275")
+    assert_empty_bundle(result)
 
     # date
     result = store.search("Patient", query_string="birthdate=eq1995-12-25")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Patient", query_string="birthdate=eq1995-12-24")
+    result = store.search("Patient", query_string="birthdate=eq1995-12-24")
+    assert_empty_bundle(result)
 
     # quantity
     result = store.search("Observation", query_string="value-quantity=eq66.899999999999991")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Observation", query_string="value-quantity=eq67")
+    result = store.search("Observation", query_string="value-quantity=eq67")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources(
@@ -840,22 +889,22 @@ def test_searchparam_prefix_ne(store: FHIRStore, index_resources):
     result = store.search("MolecularSequence", query_string="variant-start=ne128275")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("MolecularSequence", query_string="variant-start=ne128273725")
+    result = store.search("MolecularSequence", query_string="variant-start=ne128273725")
+    assert_empty_bundle(result)
 
     # date
     result = store.search("Patient", query_string="birthdate=ne1995-12-24")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Patient", query_string="birthdate=ne1995-12-25")
+    result = store.search("Patient", query_string="birthdate=ne1995-12-25")
+    assert_empty_bundle(result)
 
     # quantity
     result = store.search("Observation", query_string="value-quantity=ne67")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Observation", query_string="value-quantity=ne66.899999999999991")
+    result = store.search("Observation", query_string="value-quantity=ne66.899999999999991")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources(
@@ -869,28 +918,31 @@ def test_searchparam_prefix_gt(store: FHIRStore, index_resources):
     result = store.search("MolecularSequence", query_string="variant-start=gt128271")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("MolecularSequence", query_string="variant-start=gt128273725")
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("MolecularSequence", query_string="variant-start=gt128273729")
+    result = store.search("MolecularSequence", query_string="variant-start=gt128273725")
+    assert_empty_bundle(result)
+
+    result = store.search("MolecularSequence", query_string="variant-start=gt128273729")
+    assert_empty_bundle(result)
 
     # date
     result = store.search("Patient", query_string="birthdate=gt1995-12-24")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Patient", query_string="birthdate=gt1995-12-25")
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Patient", query_string="birthdate=gt1995-12-28")
+    result = store.search("Patient", query_string="birthdate=gt1995-12-25")
+    assert_empty_bundle(result)
+
+    result = store.search("Patient", query_string="birthdate=gt1995-12-28")
+    assert_empty_bundle(result)
 
     # quantity
     result = store.search("Observation", query_string="value-quantity=gt66")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Observation", query_string="value-quantity=gt66.899999999999991")
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Observation", query_string="value-quantity=gt67")
+    result = store.search("Observation", query_string="value-quantity=gt66.899999999999991")
+    assert_empty_bundle(result)
+
+    result = store.search("Observation", query_string="value-quantity=gt67")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources(
@@ -904,28 +956,31 @@ def test_searchparam_prefix_lt(store: FHIRStore, index_resources):
     result = store.search("MolecularSequence", query_string="variant-start=lt128273729")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("MolecularSequence", query_string="variant-start=lt128273725")
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("MolecularSequence", query_string="variant-start=lt128273721")
+    result = store.search("MolecularSequence", query_string="variant-start=lt128273725")
+    assert_empty_bundle(result)
+
+    result = store.search("MolecularSequence", query_string="variant-start=lt128273721")
+    assert_empty_bundle(result)
 
     # date
     result = store.search("Patient", query_string="birthdate=lt1995-12-28")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Patient", query_string="birthdate=lt1995-12-25")
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Patient", query_string="birthdate=lt1995-12-24")
+    result = store.search("Patient", query_string="birthdate=lt1995-12-25")
+    assert_empty_bundle(result)
+
+    result = store.search("Patient", query_string="birthdate=lt1995-12-24")
+    assert_empty_bundle(result)
 
     # quantity
     result = store.search("Observation", query_string="value-quantity=lt67")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Observation", query_string="value-quantity=lt66.899999999999991")
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Observation", query_string="value-quantity=lt66")
+    result = store.search("Observation", query_string="value-quantity=lt66.899999999999991")
+    assert_empty_bundle(result)
+
+    result = store.search("Observation", query_string="value-quantity=lt66")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources(
@@ -941,8 +996,8 @@ def test_searchparam_prefix_ge(store: FHIRStore, index_resources):
     result = store.search("MolecularSequence", query_string="variant-start=ge128273725")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("MolecularSequence", query_string="variant-start=ge128273729")
+    result = store.search("MolecularSequence", query_string="variant-start=ge128273729")
+    assert_empty_bundle(result)
 
     # date
     result = store.search("Patient", query_string="birthdate=ge1995-12-24")
@@ -950,8 +1005,8 @@ def test_searchparam_prefix_ge(store: FHIRStore, index_resources):
     result = store.search("Patient", query_string="birthdate=ge1995-12-25")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Patient", query_string="birthdate=ge1995-12-28")
+    result = store.search("Patient", query_string="birthdate=ge1995-12-28")
+    assert_empty_bundle(result)
 
     # quantity
     result = store.search("Observation", query_string="value-quantity=ge66")
@@ -959,8 +1014,8 @@ def test_searchparam_prefix_ge(store: FHIRStore, index_resources):
     result = store.search("Observation", query_string="value-quantity=ge66.899999999999991")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Observation", query_string="value-quantity=gt67")
+    result = store.search("Observation", query_string="value-quantity=gt67")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.resources(
@@ -976,8 +1031,8 @@ def test_searchparam_prefix_le(store: FHIRStore, index_resources):
     result = store.search("MolecularSequence", query_string="variant-start=le128273725")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("MolecularSequence", query_string="variant-start=le128273721")
+    result = store.search("MolecularSequence", query_string="variant-start=le128273721")
+    assert_empty_bundle(result)
 
     # date
     result = store.search("Patient", query_string="birthdate=le1995-12-28")
@@ -985,8 +1040,8 @@ def test_searchparam_prefix_le(store: FHIRStore, index_resources):
     result = store.search("Patient", query_string="birthdate=le1995-12-25")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Patient", query_string="birthdate=le1995-12-24")
+    result = store.search("Patient", query_string="birthdate=le1995-12-24")
+    assert_empty_bundle(result)
 
     # quantity
     result = store.search("Observation", query_string="value-quantity=le67")
@@ -994,8 +1049,8 @@ def test_searchparam_prefix_le(store: FHIRStore, index_resources):
     result = store.search("Observation", query_string="value-quantity=le66.899999999999991")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search("Observation", query_string="value-quantity=le66")
+    result = store.search("Observation", query_string="value-quantity=le66")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.skip()
@@ -1135,23 +1190,21 @@ def test_searchparam_mutltiple_types(store: FHIRStore, index_resources):
     result = store.search(query_string="_type=Patient,Practitioner&address-city=PleasantVille")
     assert len(result.entry) == 1
 
-    with raises(fhirpath.exceptions.NoResultFound):
-        result = store.search(query_string="_type=Patient,Practitioner&address-city=NotFound")
+    result = store.search(query_string="_type=Patient,Practitioner&address-city=NotFound")
+    assert_empty_bundle(result)
 
 
 def test_searchparam_mutltiple_types_bad_param(store: FHIRStore):
     """Should raise an error if the used search parameters are not
     shared across the entire set of specified resources
     """
-    with raises(
-        fhirpath.exceptions.ValidationError,
-        match=(
-            "No search definition is available for search "
-            "parameter ``address-city`` on Resource ``Observation``."
-        ),
-    ):
-        # TODO is it the exception we want?
-        result = store.search(query_string="_type=Patient,Observation&address-city=NotFound")
+    result = store.search(query_string="_type=Patient,Observation&address-city=NotFound")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "No search definition is available for search parameter "
+        "``address-city`` on Resource ``Observation``."
+    )
 
 
 # SORTING RESULTS
@@ -1356,6 +1409,58 @@ def test_searchparam_include_many_references(store: FHIRStore, index_resources):
 
     assert result.entry[4].resource.resource_type == "Practitioner"
     assert result.entry[4].search.mode == "include"
+
+
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_include_bad_searchparam_syntax(store: FHIRStore, index_resources):
+    result = store.search("Observation", query_string="_include=subject")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics
+        == "bad _include param 'subject', should be Resource:search_param[:target_type]"
+    )
+
+    result = store.search("Observation", query_string="_include=Observation:subject:too:long")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "bad _include param 'Observation:subject:too:long', "
+        "should be Resource:search_param[:target_type]"
+    )
+
+
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_include_bad_searchparam(store: FHIRStore, index_resources):
+    result = store.search("Observation", query_string="_include=Observation:category")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics
+        == "search parameter Observation.category must be of type 'reference', got token"
+    )
+
+
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_include_unknown_searchparam(store: FHIRStore, index_resources):
+    result = store.search("Observation", query_string="_include=Observation:unknown")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert result.issue[0].diagnostics == "search parameter Observation.unknown is unknown"
+
+
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_include_bad_target(store: FHIRStore, index_resources):
+    result = store.search(
+        "Observation", query_string="_include=Observation:subject:DocumentReference"
+    )
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics
+        == "the search param Observation.subject may refer to Group, Device, Patient, Location"
+        ", not to DocumentReference"
+    )
 
 
 @pytest.mark.skip()
