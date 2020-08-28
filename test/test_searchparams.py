@@ -487,7 +487,7 @@ def test_searchparam_type_date_datetime(store: FHIRStore, index_resources):
     # TODO: SEARCH ON "datetime" TYPE WITHOUT SPECIFYING HOURS !
     # eg: Patient?death-date=2098-01-01
     # eq
-    result = store.search("Patient", query_string="death-date=2098-01-01T12:10:30")
+    result = store.search("Patient", query_string="death-date=2098-01-01")
     assert result.total == 1
     result = store.search("Patient", query_string="death-date=eq2098-01-01T12:10:30")
     assert result.total == 1
@@ -548,7 +548,7 @@ def test_searchparam_type_date_instant(store: FHIRStore, index_resources):
     result = store.search("Appointment", query_string="date=lt2011-12-10T09:00:20Z")
     assert_empty_bundle(result)
 
-    # # ne
+    # ne
     result = store.search("Appointment", query_string="date=ne2015-12-10T09:00:00Z")
     assert result.total == 1
 
@@ -556,13 +556,141 @@ def test_searchparam_type_date_instant(store: FHIRStore, index_resources):
     assert_empty_bundle(result)
 
 
-@pytest.mark.skip()
-def test_searchparam_type_date_period(store: FHIRStore, index_resources):
+@pytest.mark.resources("encounter-example-home.json")
+def test_searchparam_type_date_period_eq(store: FHIRStore, index_resources):
     """Handle date search parameters on FHIR data type "period"
     The date format is the standard XML format, though other formats may be supported
     """
-    pass
+    result = store.search("Encounter", query_string="date=2015-01-17")
+    assert result.total == 1
 
+    result = store.search("Encounter", query_string="date=2015-01-17T15:15:00")
+    assert_empty_bundle(result)
+
+
+@pytest.mark.resources("encounter-example-home.json", "encounter-example-long.json")
+def test_searchparam_type_date_period_ne(store: FHIRStore, index_resources):
+    """Handle date search parameters on FHIR data type "period"
+    The date format is the standard XML format, though other formats may be supported
+    prefix ne: the range of the search value does not fully contain the range of the target value
+    """
+    result = store.search("Encounter", query_string="date=ne2015-01-17")
+    assert result.total == 1
+    assert result.entry[0].resource.id == "long"
+
+    result = store.search("Encounter", query_string="date=ne2015-01-17T16:15:00")
+    assert result.total == 2
+
+
+@pytest.mark.resources("encounter-example-home.json")
+def test_searchparam_type_date_period_gt(store: FHIRStore, index_resources):
+    """Handle date search parameters on FHIR data type "period"
+    The date format is the standard XML format, though other formats may be supported
+    prefix gt: the range above the search value intersects (i.e. overlaps)
+        with the range of the target value
+    """
+    # TODO handle timezone "date=gt2015-01-17T16:15:00+10:00"
+    result = store.search("Encounter", query_string="date=gt2015-01-17T16:15:00")
+    assert result.total == 1
+
+    result = store.search("Encounter", query_string="date=gt2015-01-17")
+    assert_empty_bundle(result)
+
+
+@pytest.mark.resources("encounter-example-home.json")
+def test_searchparam_type_date_period_lt(store: FHIRStore, index_resources):
+    """Handle date search parameters on FHIR data type "period"
+    The date format is the standard XML format, though other formats may be supported
+    prefix lt: the range below the search value intersects (i.e. overlaps)
+        with the range of the target value
+    """
+    result = store.search("Encounter", query_string="date=lt2015-01-17T16:15:00")
+    assert result.total == 1
+
+    result = store.search("Encounter", query_string="date=lt2015-01-17")
+    assert_empty_bundle(result)
+
+
+@pytest.mark.resources("encounter-example-home.json")
+def test_searchparam_type_date_period_ge(store: FHIRStore, index_resources):
+    """Handle date search parameters on FHIR data type "period"
+    The date format is the standard XML format, though other formats may be supported
+    prefix ge: the range above the search value intersects (i.e. overlaps)
+        with the range of the target value, or the range of the search
+        value fully contains the range of the target value
+    """
+    result = store.search("Encounter", query_string="date=ge2015-01-17T16:15:00")
+    assert result.total == 1
+
+    result = store.search("Encounter", query_string="date=ge2015-01-17")
+    assert result.total == 1
+
+    result = store.search("Encounter", query_string="date=ge2015-01-17T16:40:00")
+    assert_empty_bundle(result)
+
+
+@pytest.mark.resources("encounter-example-home.json")
+def test_searchparam_type_date_period_le(store: FHIRStore, index_resources):
+    """Handle date search parameters on FHIR data type "period"
+    The date format is the standard XML format, though other formats may be supported
+    prefix le: the range below the search value intersects (i.e. overlaps)
+        with the range of the target value or the range of the search
+        value fully contains the range of the target value
+    """
+    result = store.search("Encounter", query_string="date=le2015-01-17T16:15:00")
+    assert result.total == 1
+
+    result = store.search("Encounter", query_string="date=le2015-01-17")
+    assert result.total == 1
+
+    result = store.search("Encounter", query_string="date=le2015-01-17T15:15:00")
+    assert_empty_bundle(result)
+
+
+
+@pytest.mark.resources("encounter-example-home.json")
+def test_searchparam_type_date_period_sa(store: FHIRStore, index_resources):
+    """Handle date search parameters on FHIR data type "period"
+    The date format is the standard XML format, though other formats may be supported
+    prefix sa: the range of the search value does not overlap with the range of the target value,
+        and the range above the search value contains the range of the target value
+    """
+    result = store.search("Encounter", query_string="date=sa2015-01-17T15:15:00")
+    assert result.total == 1
+
+    result = store.search("Encounter", query_string="date=sa2015-01-17T16:00:00")
+    assert_empty_bundle(result)
+
+
+@pytest.mark.resources("encounter-example-home.json")
+def test_searchparam_type_date_period_eb(store: FHIRStore, index_resources):
+    """Handle date search parameters on FHIR data type "period"
+    The date format is the standard XML format, though other formats may be supported
+    prefix eb: the range of the search value does overlap not with the range of the target value,
+        and the range below the search value contains the range of the target value
+    """
+    result = store.search("Encounter", query_string="date=eb2015-01-17T16:45:00")
+    assert result.total == 1
+
+    result = store.search("Encounter", query_string="date=eb2015-01-17T16:30:00")
+    assert_empty_bundle(result)
+
+
+@pytest.mark.resources("encounter-example-home.json", "encounter-example-long.json")
+def test_searchparam_type_date_period_ap(store: FHIRStore, index_resources):
+    """Handle date search parameters on FHIR data type "period"
+    The date format is the standard XML format, though other formats may be supported
+    prefix ap: the range of the search value overlaps with the range of the target value
+    """
+    result = store.search("Encounter", query_string="date=ap2015-01-17")
+    assert result.total == 2
+
+    result = store.search("Encounter", query_string="date=ap2015-01-18T16:15:00")
+    assert result.total == 1
+    assert result.entry[0].resource.id == "long"
+
+    result = store.search("Encounter", query_string="date=ap2015-01-21")
+    assert_empty_bundle(result)
 
 @pytest.mark.resources("observation-bodyheight-example.json")
 def test_searchparam_type_reference_literal(store: FHIRStore, index_resources):

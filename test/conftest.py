@@ -29,6 +29,7 @@ def store():
     fhirstore.reset()
     fhirstore.bootstrap(resource="Appointment")
     fhirstore.bootstrap(resource="CodeSystem")
+    fhirstore.bootstrap(resource="Encounter")
     fhirstore.bootstrap(resource="Location")
     fhirstore.bootstrap(resource="MedicationRequest")
     fhirstore.bootstrap(resource="MolecularSequence")
