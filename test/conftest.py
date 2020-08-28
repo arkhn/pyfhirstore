@@ -27,13 +27,14 @@ def store():
 
     fhirstore = FHIRStore(client, client_es, DB_NAME)
     fhirstore.reset()
-    fhirstore.bootstrap(resource="Patient")
-    fhirstore.bootstrap(resource="Observation")
-    fhirstore.bootstrap(resource="Practitioner")
-    fhirstore.bootstrap(resource="MedicationRequest")
+    fhirstore.bootstrap(resource="Appointment")
     fhirstore.bootstrap(resource="CodeSystem")
-    fhirstore.bootstrap(resource="MolecularSequence")
     fhirstore.bootstrap(resource="Location")
+    fhirstore.bootstrap(resource="MedicationRequest")
+    fhirstore.bootstrap(resource="MolecularSequence")
+    fhirstore.bootstrap(resource="Observation")
+    fhirstore.bootstrap(resource="Patient")
+    fhirstore.bootstrap(resource="Practitioner")
 
     return fhirstore
 

@@ -517,12 +517,43 @@ def test_searchparam_type_date_datetime(store: FHIRStore, index_resources):
     assert_empty_bundle(result)
 
 
-@pytest.mark.skip()
+@pytest.mark.resources("appointment-example.json")
 def test_searchparam_type_date_instant(store: FHIRStore, index_resources):
     """Handle date search parameters on FHIR data type "instant"
     The date format is the standard XML format, though other formats may be supported
     """
-    pass
+    result = store.search("Appointment", query_string="date=2013-12-10T09:00:00Z")
+    assert result.total == 1
+    result = store.search("Appointment", query_string="date=eq2013-12-10T09:00:00Z")
+    assert result.total == 1
+
+    result = store.search("Appointment", query_string="date=2013-11-10T09:00:00Z")
+    assert_empty_bundle(result)
+
+    # gt
+    result = store.search("Appointment", query_string="date=gt2013-10-10T09:00:00Z")
+    assert result.total == 1
+
+    result = store.search("Appointment", query_string="date=gt2013-12-10T09:00:00Z")
+    assert_empty_bundle(result)
+    result = store.search("Appointment", query_string="date=gt2013-12-10T09:00:20Z")
+    assert_empty_bundle(result)
+
+    # lt
+    result = store.search("Appointment", query_string="date=lt2015-12-10T09:00:00Z")
+    assert result.total == 1
+
+    result = store.search("Appointment", query_string="date=lt2013-12-10T09:00:00Z")
+    assert_empty_bundle(result)
+    result = store.search("Appointment", query_string="date=lt2011-12-10T09:00:20Z")
+    assert_empty_bundle(result)
+
+    # # ne
+    result = store.search("Appointment", query_string="date=ne2015-12-10T09:00:00Z")
+    assert result.total == 1
+
+    result = store.search("Appointment", query_string="date=ne2013-12-10T09:00:00Z")
+    assert_empty_bundle(result)
 
 
 @pytest.mark.skip()
@@ -1183,6 +1214,8 @@ def test_searchparam_no_type_provided_bad_param(store: FHIRStore):
         result.issue[0].diagnostics == "No search definition is available for search parameter "
         "``address-city`` on Resource ``Resource``."
     )
+
+
 # logging.basicConfig(level=logging.DEBUG)
 
 
