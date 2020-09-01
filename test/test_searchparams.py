@@ -6,8 +6,6 @@ from fhir.resources.operationoutcome import OperationOutcome
 
 from fhirstore import FHIRStore, NotFoundError
 
-import logging
-
 
 def assert_empty_bundle(result):
     assert isinstance(result, Bundle)
@@ -27,14 +25,16 @@ def index_resources(request, es_client):
 
     indexed_resource_ids = []
     resource_paths = marker.args
+    resources = {}
     for path in resource_paths:
         # read and index the resource is ES
         with open(f"test/fixtures/{path}") as f:
             r = json.load(f)
+            resources[r["resourceType"]] = r
             res = es_client.index(index="fhirstore", body={r["resourceType"]: r}, refresh=True)
             indexed_resource_ids.append(res["_id"])
 
-    yield r
+    yield resources
 
     # cleanup ES
     for r_id in indexed_resource_ids:
@@ -484,8 +484,6 @@ def test_searchparam_type_date_datetime(store: FHIRStore, index_resources):
     # result = store.search("Observation", query_string="date=2009-09-09")
     # assert_empty_bundle(result)
 
-    # TODO: SEARCH ON "datetime" TYPE WITHOUT SPECIFYING HOURS !
-    # eg: Patient?death-date=2098-01-01
     # eq
     result = store.search("Patient", query_string="death-date=2098-01-01")
     assert result.total == 1
@@ -647,7 +645,6 @@ def test_searchparam_type_date_period_le(store: FHIRStore, index_resources):
     assert_empty_bundle(result)
 
 
-
 @pytest.mark.resources("encounter-example-home.json")
 def test_searchparam_type_date_period_sa(store: FHIRStore, index_resources):
     """Handle date search parameters on FHIR data type "period"
@@ -691,6 +688,7 @@ def test_searchparam_type_date_period_ap(store: FHIRStore, index_resources):
 
     result = store.search("Encounter", query_string="date=ap2015-01-21")
     assert_empty_bundle(result)
+
 
 @pytest.mark.resources("observation-bodyheight-example.json")
 def test_searchparam_type_reference_literal(store: FHIRStore, index_resources):
@@ -1280,12 +1278,23 @@ def test_searchparam_chained_typed(store: FHIRStore):
 # resources can be selected based on the properties of resources that they refer to)
 
 
-@pytest.mark.skip()
-def test_searchparam_reverse_chaining(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json", "patient-example-2.json", "observation-bodyheight-example.json"
+)
+def test_searchparam_reverse_chaining(store: FHIRStore, index_resources):
     """Handle a single chained parameter
-    Patient?_has:Observation:patient:code=1234-5
+    Patient?_has:Observation:patient:code=8302-2
     """
-    pass
+    observation_result = store.search("Observation", query_string="code=8302-2")
+    assert len(observation_result.entry) == 1
+    obs = observation_result.entry[0].resource
+
+    result = store.search("Patient", query_string="_has:Observation:patient:code=8302-2")
+    assert len(result.entry) == 1
+    assert f"Patient/{result.entry[0].resource.id}" == obs.subject.reference
+
+    result = store.search("Patient", query_string="_has:Observation:patient:code=XXX")
+    assert len(result.entry) == 0
 
 
 @pytest.mark.skip()
@@ -1342,9 +1351,6 @@ def test_searchparam_no_type_provided_bad_param(store: FHIRStore):
         result.issue[0].diagnostics == "No search definition is available for search parameter "
         "``address-city`` on Resource ``Resource``."
     )
-
-
-# logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.mark.resources("patient-example.json", "practitioner-example.json")
@@ -1614,7 +1620,10 @@ def test_searchparam_include_unknown_searchparam(store: FHIRStore, index_resourc
     result = store.search("Observation", query_string="_include=Observation:unknown")
     assert isinstance(result, OperationOutcome)
     assert len(result.issue) == 1
-    assert result.issue[0].diagnostics == "search parameter Observation.unknown is unknown"
+    assert (
+        result.issue[0].diagnostics == "No search definition is available for search "
+        "parameter ``unknown`` on Resource ``Observation``."
+    )
 
 
 @pytest.mark.resources("observation-bodyheight-example.json")
