@@ -10,4 +10,3 @@ def test_get_from_path():
     obj = {"a": [{"b": 1, "c": [2]}, {"b": 3, "c": [4, 5]}]}
 
     assert utils.get_from_path(obj, "a.c") == [2, 4, 5]
-

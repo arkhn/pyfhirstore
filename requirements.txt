@@ -6,5 +6,5 @@ tqdm==4.36.1
 werkzeug==1.0.1
 fhir.resources>=6.0.0b3,<7.0
 
-fhirpath_helpers @ git+https://github.com/nazrulworld/fhirpath_helpers@0f0c5001ef6060e6bf319e6a7fc6f09676712267#egg=fhirpath_helpers
+fhirpath_helpers @ git+https://github.com/arkhn/fhirpath_helpers@sv/es-mapping#egg=fhirpath_helpers
 fhirpath @ git+https://github.com/arkhn/fhirpath@sv/handle-multiple-index#egg=fhirpath

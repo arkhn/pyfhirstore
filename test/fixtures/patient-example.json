@@ -22,7 +22,7 @@
   ],
   "active": true,
   "birthDate": "1995-12-25",
-  "deceasedDateTime": "2098-01-01T12:10:30Z",
+  "deceasedDateTime": "2098-01-01T12:10:30+00:00",
   "address": [
     {
       "use": "home",
@@ -106,7 +106,7 @@
     }
   ],
   "meta": {
-    "lastUpdated": "2020-06-22T09:29:23Z",
+    "lastUpdated": "2020-06-22T09:29:23+00:00",
     "profile": ["http://hl7.org/fhir/StructureDefinition/Patient"],
     "tag": [
       {

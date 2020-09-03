@@ -1,7 +1,8 @@
 import sys
 import logging
 import elasticsearch
-
+from typing import Union, Dict, List, Optional
+import bson
 import json
 import pydantic
 
@@ -11,8 +12,7 @@ from tqdm import tqdm
 
 import fhirpath
 from fhirpath.search import SearchContext, Search
-
-from fhir.resources import construct_fhir_element
+from fhir.resources import construct_fhir_element, FHIRAbstractModel
 from fhir.resources.operationoutcome import OperationOutcome
 
 from fhirstore import ARKHN_CODE_SYSTEMS
@@ -42,7 +42,7 @@ class FHIRStore:
         mongo_client: MongoClient,
         es_client: elasticsearch.Elasticsearch,
         db_name: str,
-        resources: list = [],
+        resources: List[str] = [],
     ):
         self.es = es_client
         self.db = mongo_client[db_name]
@@ -63,7 +63,7 @@ class FHIRStore:
         self.es.indices.delete("_all")
         self.resources = []
 
-    def bootstrap(self, resource=None, show_progress=True):
+    def bootstrap(self, resource: Optional[str] = None, show_progress: Optional[bool] = True):
         """
         Parses the FHIR json-schema and create the collections according to it.
         """
@@ -103,13 +103,24 @@ class FHIRStore:
         self.resources = self.db.list_collection_names()
 
     def validate_resource_type(self, resource_type):
-        if resource_type is None:
+        if not resource_type:
             raise BadRequestError("resourceType is missing in resource")
-
         elif resource_type not in self.resources:
             raise NotFoundError(f'unsupported FHIR resource: "{resource_type}"')
 
-    def create(self, resource, bypass_document_validation=False):
+    def normalize_resource(self, resource: Union[Dict, FHIRAbstractModel]) -> FHIRAbstractModel:
+        if isinstance(resource, dict):
+            resource_type = resource.get("resourceType")
+            self.validate_resource_type(resource_type)
+            resource = construct_fhir_element(resource_type, resource)
+
+        return resource
+
+    def error(self, errors: List[str], severity="error", code="invalid") -> OperationOutcome:
+        issues = [{"severity": severity, "code": code, "diagnostics": err} for err in errors]
+        return OperationOutcome(**{"issue": issues})
+
+    def create(self, resource: Union[Dict, FHIRAbstractModel], bypass_document_validation=False):
         """
         Creates a resource. The structure of the resource will be checked
         against its json-schema FHIR definition.
@@ -120,15 +131,23 @@ class FHIRStore:
         Returns: The created resource.
         """
         try:
-            r = construct_fhir_element(resource.resource_type, resource)
-            res = self.db[resource.resource_type].insert_one(
-                json.loads(r.json()), bypass_document_validation=bypass_document_validation
+            resource = self.normalize_resource(resource)
+        except pydantic.ValidationError as e:
+            return self.error(
+                [
+                    f"{err['msg'] or 'Validation error'}: "
+                    f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
+                    for err in e.errors()
+                ]
             )
-            return {**r.dict(), "_id": res.inserted_id}
+
+        try:
+            res = self.db[resource.resource_type].insert_one(
+                json.loads(resource.json()), bypass_document_validation=bypass_document_validation
+            )
+            return {**resource.dict(), "_id": res.inserted_id}
         except DuplicateKeyError as e:
             raise e
-        except WriteError:
-            return self.validate(resource)
 
     def read(self, resource_type, instance_id):
         """
@@ -143,12 +162,12 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        res = self.db[resource_type].find_one({"id": instance_id})
+        res = self.db[resource_type].find_one({"id": instance_id}, projection={"_id": False})
         if res is None:
             raise NotFoundError
         return res
 
-    def update(self, resource_type, instance_id, resource, bypass_document_validation=False):
+    def update(self, instance_id, resource, bypass_document_validation=False):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -163,19 +182,24 @@ class FHIRStore:
 
         Returns: The updated resource.
         """
-        self.validate_resource_type(resource_type)
-
         try:
-            update_result = self.db[resource_type].replace_one(
-                {"id": instance_id},
-                resource,
-                bypass_document_validation=bypass_document_validation,
+            resource = self.normalize_resource(resource)
+        except pydantic.ValidationError as e:
+            return self.error(
+                [
+                    f"{err['msg'] or 'Validation error'}: "
+                    f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
+                    for err in e.errors()
+                ]
             )
-            if update_result.matched_count == 0:
-                raise NotFoundError
-            return update_result
-        except OperationFailure:
-            return self.validate(resource)
+        update_result = self.db[resource.resource_type].replace_one(
+            {"id": instance_id},
+            json.loads(resource.json()),
+            bypass_document_validation=bypass_document_validation,
+        )
+        if update_result.matched_count == 0:
+            return self.error([f"{resource.resource_type} with id {instance_id} not found"])
+        return update_result
 
     def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
         """
@@ -195,18 +219,15 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        try:
-            update_result = self.db[resource_type].update_one(
-                {"id": instance_id},
-                {"$set": patch},
-                bypass_document_validation=bypass_document_validation,
-            )
-            if update_result.matched_count == 0:
-                raise NotFoundError
-            return update_result
-        except OperationFailure:
-            resource = self.read(resource_type, instance_id)
-            return self.validate({**resource, **patch})
+        update_result = self.db[resource_type].update_one(
+            {"id": instance_id},
+            {"$set": patch},
+            bypass_document_validation=bypass_document_validation,
+        )
+        if update_result.matched_count == 0:
+            raise NotFoundError
+
+        return update_result
 
     def delete(self, resource_type, instance_id=None, resource_id=None, source_id=None):
         """

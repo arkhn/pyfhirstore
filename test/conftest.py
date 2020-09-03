@@ -15,7 +15,7 @@ ES_PASSWORD = os.getenv("ES_PASSWORD")
 ES_URL = os.getenv("ES_URL")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def store():
     client = MongoClient(username=MONGO_USERNAME, password=MONGO_PASSWORD)
     try:
