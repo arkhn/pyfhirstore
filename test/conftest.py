@@ -11,7 +11,6 @@ from fhirstore import FHIRStore
 DB_NAME = "fhirstore_test"
 MONGO_USERNAME = os.getenv("MONGO_USERNAME")
 MONGO_PASSWORD = os.getenv("MONGO_PASSWORD")
-ES_PASSWORD = os.getenv("ES_PASSWORD")
 ES_URL = os.getenv("ES_URL")
 
 
