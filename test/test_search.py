@@ -278,6 +278,7 @@ def test_searchparam_standard_tag(store: FHIRStore, index_resources):
 
 
 # fhirpath does not index Resource.text.div (Narrative) yet
+@pytest.mark.skip()
 @pytest.mark.resources("patient-example.json")
 def test_searchparam_standard_text(store: FHIRStore, index_resources):
     """The _text param performs text search against the narrative of the resource
