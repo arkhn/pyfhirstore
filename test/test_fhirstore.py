@@ -90,7 +90,7 @@ class TestFHIRStore:
         with raises(
             DuplicateKeyError,
             match='dup key: { identifier.system: "sys", identifier.value: "val", \
-identifier.type.coding.0.system: null, identifier.type.coding.0.code: null }',
+identifier.type.coding.system: null, identifier.type.coding.code: null }',
         ):
             store.create(
                 {
@@ -102,7 +102,7 @@ identifier.type.coding.0.system: null, identifier.type.coding.0.code: null }',
         with raises(
             DuplicateKeyError,
             match='dup key: { identifier.system: null, identifier.value: "just_value", \
-identifier.type.coding.0.system: null, identifier.type.coding.0.code: null }',
+identifier.type.coding.system: null, identifier.type.coding.code: null }',
         ):
             store.create(
                 {"identifier": [{"value": "just_value"}], "resourceType": "Patient", "id": "pat2",}
@@ -110,7 +110,7 @@ identifier.type.coding.0.system: null, identifier.type.coding.0.code: null }',
         with raises(
             DuplicateKeyError,
             match='dup key: { identifier.system: "system", identifier.value: "value", \
-identifier.type.coding.0.system: "type_system", identifier.type.coding.0.code: "type_code" }',
+identifier.type.coding.system: "type_system", identifier.type.coding.code: "type_code" }',
         ):
             store.create(
                 {
