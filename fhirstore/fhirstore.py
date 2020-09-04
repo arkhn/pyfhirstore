@@ -48,7 +48,7 @@ class FHIRStore:
             logging.warning("No elasticsearch client provided, search features are disabled")
 
     @property
-    def initiliazed(self):
+    def initialized(self):
         return len(self.resources) > 0
 
     def reset(self, mongo=True, es=True):

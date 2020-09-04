@@ -106,7 +106,3 @@ ENV/
 .idea
 .vscode
 *.sublime-*
-
-# files
-/src/fhirpath/version.py
-src/fhirpath/fhirspec/R4/
