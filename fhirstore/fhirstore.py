@@ -365,6 +365,12 @@ class FHIRStore:
                 raise Exception("Bundle entry is missing a resource.")
 
             try:
-                self.create(entry["resource"])
+                res = self.create(entry["resource"])
+                if isinstance(res, OperationOutcome):
+                    logging.error(
+                        f"could not upload resource {entry['resource']['resourceType']}"
+                        f"with id {entry['resource']['id']}"
+                    )
+
             except DuplicateKeyError as e:
                 logging.warning(f"Document already existed: {e}")
