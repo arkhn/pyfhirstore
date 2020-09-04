@@ -39,7 +39,7 @@ class ElasticSearchEngine(BaseEngine):
     def create_es_index(self, resource=None):
         body = {
             "settings": {
-                "index.mapping.total_fields.limit": 10000,
+                "index.mapping.total_fields.limit": 100000,
                 "index.mapping.nested_fields.limit": 10000,
                 "analysis": {
                     "normalizer": {"fhir_normalizer": {"filter": ["lowercase", "asciifolding"]}},
