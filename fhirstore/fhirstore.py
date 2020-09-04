@@ -70,8 +70,8 @@ class FHIRStore:
                 [
                     ("identifier.system", ASCENDING),
                     ("identifier.value", ASCENDING),
-                    ("identifier.type.coding.0.system", ASCENDING),
-                    ("identifier.type.coding.0.code", ASCENDING),
+                    ("identifier.type.coding.system", ASCENDING),
+                    ("identifier.type.coding.code", ASCENDING),
                 ],
                 unique=True,
                 partialFilterExpression={"identifier": {"$exists": True}},

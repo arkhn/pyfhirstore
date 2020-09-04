@@ -19,8 +19,8 @@ db.Collection.createIndex(
     {
         "identifier.system": 1,
         "identifier.value": 1,
-        "identifier.type.coding.0.system": 1,
-        "identifier.type.coding.0.code": 1
+        "identifier.type.coding.system": 1,
+        "identifier.type.coding.code": 1
     }, 
     {
         partialFilterExpression: {identifier: {$exists: true}}
