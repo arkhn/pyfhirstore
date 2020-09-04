@@ -1,13 +1,12 @@
 import sys
 import logging
-import elasticsearch
 from typing import Union, Dict, List, Optional
-import bson
 import json
-import pydantic
 
+import elasticsearch
+import pydantic
 from pymongo import MongoClient, ASCENDING
-from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
+from pymongo.errors import DuplicateKeyError
 from tqdm import tqdm
 
 import fhirpath
@@ -16,7 +15,6 @@ from fhir.resources import construct_fhir_element, FHIRAbstractModel
 from fhir.resources.operationoutcome import OperationOutcome
 
 from fhirstore import ARKHN_CODE_SYSTEMS
-from fhirstore.schema import SchemaParser
 from fhirstore.search_engine import ElasticSearchEngine, create_search_engine
 
 
@@ -38,30 +36,35 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self,
-        mongo_client: MongoClient,
-        es_client: elasticsearch.Elasticsearch,
-        db_name: str,
-        resources: List[str] = [],
+        self, mongo_client: MongoClient, es_client: elasticsearch.Elasticsearch, db_name: str,
     ):
         self.es = es_client
         self.db = mongo_client[db_name]
-        self.parser = SchemaParser()
-        self.resources = resources
+        self.resources = self.db.list_collection_names()
 
         if self.es and len(self.es.transport.hosts) > 0:
             self.search_engine: ElasticSearchEngine = create_search_engine(self.es)
         else:
             logging.warning("No elasticsearch client provided, search features are disabled")
 
-    def reset(self):
+    @property
+    def initiliazed(self):
+        return len(self.resources) > 0
+
+    def reset(self, mongo=True, es=True):
         """
         Drops all collections currently in the database.
         """
-        for collection in self.db.list_collection_names():
-            self.db.drop_collection(collection)
-        self.es.indices.delete("_all")
-        self.resources = []
+        if mongo and not es:
+            raise Exception("You also need to drop ES indices when resetting mongo")
+
+        if mongo:
+            for collection in self.resources:
+                self.db.drop_collection(collection)
+            self.resources = []
+
+        if es:
+            self.es.indices.delete("_all")
 
     def bootstrap(self, resource: Optional[str] = None, show_progress: Optional[bool] = True):
         """
@@ -95,12 +98,6 @@ class FHIRStore:
                 unique=True,
                 partialFilterExpression={"identifier": {"$exists": True}},
             )
-
-    def resume(self, show_progress=True):
-        """
-        Loads the existing resources schema from the database.
-        """
-        self.resources = self.db.list_collection_names()
 
     def validate_resource_type(self, resource_type):
         if not resource_type:
@@ -141,13 +138,10 @@ class FHIRStore:
                 ]
             )
 
-        try:
-            res = self.db[resource.resource_type].insert_one(
-                json.loads(resource.json()), bypass_document_validation=bypass_document_validation
-            )
-            return {**resource.dict(), "_id": res.inserted_id}
-        except DuplicateKeyError as e:
-            raise e
+        res = self.db[resource.resource_type].insert_one(
+            json.loads(resource.json()), bypass_document_validation=bypass_document_validation
+        )
+        return {**resource.dict(), "_id": res.inserted_id}
 
     def read(self, resource_type, instance_id):
         """
@@ -275,33 +269,6 @@ class FHIRStore:
             raise NotFoundError
 
         return res.deleted_count
-
-    def validate(self, resource):
-        """
-        Validates the given resource against its own schema.
-        This is much more efficient than running th validation against the
-        whole FHIR json schema.
-        This function is useful because MongoDB does not provide any feedback
-        about the schema validation error other than "Schema validation failed"
-
-        Args:
-            resource: The object to be validated against the schema.
-                      It is expected to have the "resourceType" property.
-        """
-        try:
-            construct_fhir_element(resource["resourceType"], resource)
-        except pydantic.ValidationError as e:
-            issues = []
-            for err in e.errors():
-                issues.append(
-                    {
-                        "severity": "error",
-                        "code": "invalid",
-                        "diagnostics": f"{err['msg']}: "
-                        f"{','.join([f'{e.model.get_resource_type()}.{l}' for l in err['loc']])}",
-                    }
-                )
-            return OperationOutcome(**{"issue": issues})
 
     def search(self, resource_type=None, query_string=None, params=None):
         """
