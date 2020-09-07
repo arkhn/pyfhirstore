@@ -13,7 +13,7 @@ requirements = read("requirements.txt").split()
 
 setuptools.setup(
     name="fhirstore",
-    version="0.4.8",
+    version="0.5.0",
     author="Arkhn",
     author_email="contact@arkhn.org",
     description="Manipulating FHIR data leveraging MongoDB as storage layer",
