@@ -1641,12 +1641,164 @@ def test_searchparam_include_bad_target(store: FHIRStore, index_resources):
     )
 
 
-@pytest.mark.skip()
-def test_searchparam_revinclude(store: FHIRStore):
+@pytest.mark.resources(
+    "patient-example.json",
+    "patient-example-2.json",
+    "observation-bodyheight-example.json",
+    "observation-glucose.json",
+)
+def test_searchparam_revinclude(store: FHIRStore, index_resources):
     """Handle _include
-    MedicationRequest?_revinclude=Provenance:target
+    Patient?_revinclude=Provenance:target
     """
-    pass
+
+    result = store.search("Patient", query_string="_id=pat1&_revinclude=Observation:subject",)
+
+    # both the observation and the patient should have been returned
+    assert len(result.entry) == 2
+
+    assert result.entry[0].resource.resource_type == "Patient"
+    assert result.entry[0].search.mode == "match"
+
+    assert result.entry[1].resource.resource_type == "Observation"
+    assert result.entry[1].search.mode == "include"
+
+
+@pytest.mark.resources(
+    "patient-example.json",
+    "patient-example-2.json",
+    "observation-bodyheight-example.json",
+    "observation-glucose.json",
+)
+def test_searchparam_revinclude_typed(store: FHIRStore, index_resources):
+    """Handle _include
+    Patient?_revinclude=Provenance:target
+    """
+
+    result = store.search(
+        "Patient", query_string="_id=pat1&_revinclude=Observation:subject:Patient",
+    )
+
+    # both the observation and the patient should have been returned
+    assert len(result.entry) == 2
+
+    assert result.entry[0].resource.resource_type == "Patient"
+    assert result.entry[0].search.mode == "match"
+
+    assert result.entry[1].resource.resource_type == "Observation"
+    assert result.entry[1].search.mode == "include"
+
+
+@pytest.mark.resources(
+    "patient-example.json",
+    "patient-example-2.json",
+    "observation-bodyheight-example.json",
+    "observation-glucose.json",
+)
+def test_searchparam_revinclude_with_has(store: FHIRStore, index_resources):
+    """Handle _include
+    Patient?_revinclude=Provenance:target
+    """
+
+    result = store.search(
+        "Patient",
+        query_string="_has:Observation:subject:code=8302-2&_revinclude=Observation:subject",
+    )
+
+    # both the observation and the patient should have been returned
+    assert len(result.entry) == 2
+
+    assert result.entry[0].resource.resource_type == "Patient"
+    assert result.entry[0].search.mode == "match"
+
+    assert result.entry[1].resource.resource_type == "Observation"
+    assert result.entry[1].search.mode == "include"
+
+
+@pytest.mark.resources(
+    "patient-example.json",
+    "patient-example-2.json",
+    "observation-bodyheight-example.json",
+    "observation-glucose.json",
+    "medicationrequest-example.json",
+)
+def test_searchparam_revinclude_double(store: FHIRStore, index_resources):
+    """Handle _include
+    Patient?_revinclude=Provenance:target
+    """
+
+    result = store.search(
+        "Patient",
+        query_string="_has:Observation:subject:code=8302-2"
+        "&_revinclude=Observation:subject&_revinclude=MedicationRequest:subject",
+    )
+
+    # both the observation and the patient should have been returned
+    assert len(result.entry) == 3
+
+    assert result.entry[0].resource.resource_type == "Patient"
+    assert result.entry[0].search.mode == "match"
+
+    assert result.entry[1].resource.resource_type == "Observation"
+    assert result.entry[1].search.mode == "include"
+
+    assert result.entry[2].resource.resource_type == "MedicationRequest"
+    assert result.entry[2].search.mode == "include"
+
+
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_revinclude_bad_searchparam_syntax(store: FHIRStore, index_resources):
+    result = store.search("Patient", query_string="_revinclude=subject")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics
+        == "bad _revinclude param 'subject', should be Resource:search_param[:target_type]"
+    )
+
+    result = store.search("Patient", query_string="_revinclude=Observation:subject:too:long")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "bad _revinclude param 'Observation:subject:too:long', "
+        "should be Resource:search_param[:target_type]"
+    )
+
+
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_revinclude_bad_searchparam(store: FHIRStore, index_resources):
+    result = store.search("Patient", query_string="_revinclude=Observation:category")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics
+        == "search parameter Observation.category must be of type 'reference', got token"
+    )
+
+
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_revinclude_unknown_searchparam(store: FHIRStore, index_resources):
+    result = store.search("Patient", query_string="_revinclude=Observation:unknown")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "No search definition is available for search "
+        "parameter ``unknown`` on Resource ``Observation``."
+    )
+
+
+@pytest.mark.resources("observation-bodyheight-example.json")
+def test_searchparam_revinclude_bad_target(store: FHIRStore, index_resources):
+    result = store.search(
+        "Observation", query_string="_revinclude=Observation:subject:DocumentReference"
+    )
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics
+        == "the search param Observation.subject may refer to Group, Device, Patient, Location"
+        ", not to DocumentReference"
+    )
 
 
 # SUMMARY
