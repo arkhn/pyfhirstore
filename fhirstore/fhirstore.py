@@ -10,12 +10,13 @@ from pymongo.errors import DuplicateKeyError
 from tqdm import tqdm
 
 import fhirpath
+from fhirpath.enums import FHIR_VERSION
 from fhirpath.search import SearchContext, Search
 from fhir.resources import construct_fhir_element, FHIRAbstractModel
 from fhir.resources.operationoutcome import OperationOutcome
 
 from fhirstore import ARKHN_CODE_SYSTEMS
-from fhirstore.search_engine import ElasticSearchEngine, create_search_engine
+from fhirstore.search_engine import ElasticSearchEngine
 
 
 class NotFoundError(Exception):
@@ -43,7 +44,7 @@ class FHIRStore:
         self.resources = self.db.list_collection_names()
 
         if self.es and len(self.es.transport.hosts) > 0:
-            self.search_engine: ElasticSearchEngine = create_search_engine(self.es)
+            self.search_engine = ElasticSearchEngine(self.es, FHIR_VERSION.R4)
         else:
             logging.warning("No elasticsearch client provided, search features are disabled")
 
@@ -110,27 +111,31 @@ class FHIRStore:
             resource_type = resource.get("resourceType")
             self.validate_resource_type(resource_type)
             resource = construct_fhir_element(resource_type, resource)
+        elif not isinstance(resource, FHIRAbstractModel):
+            raise BadRequestError(
+                "Provided resource must be of type Union[Dict, FHIRAbstractModel]"
+            )
 
         return resource
 
-    def error(self, errors: List[str], severity="error", code="invalid") -> OperationOutcome:
+    def format_error(self, errors: List[str], severity="error", code="invalid") -> OperationOutcome:
         issues = [{"severity": severity, "code": code, "diagnostics": err} for err in errors]
-        return OperationOutcome(**{"issue": issues})
+        return OperationOutcome(issue=issues)
 
-    def create(self, resource: Union[Dict, FHIRAbstractModel], bypass_document_validation=False):
+    def create(self, resource: Union[Dict, FHIRAbstractModel]):
         """
         Creates a resource. The structure of the resource will be checked
         against its json-schema FHIR definition.
 
         Args:
-            - resource: dict with the resource data
+            - resource: either a dict with the resource data or a fhir.resources.FHIRAbstractModel
 
         Returns: The created resource.
         """
         try:
             resource = self.normalize_resource(resource)
         except pydantic.ValidationError as e:
-            return self.error(
+            return self.format_error(
                 [
                     f"{err['msg'] or 'Validation error'}: "
                     f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
@@ -138,9 +143,7 @@ class FHIRStore:
                 ]
             )
 
-        res = self.db[resource.resource_type].insert_one(
-            json.loads(resource.json()), bypass_document_validation=bypass_document_validation
-        )
+        res = self.db[resource.resource_type].insert_one(json.loads(resource.json()))
         return {**resource.dict(), "_id": res.inserted_id}
 
     def read(self, resource_type, instance_id):
@@ -161,7 +164,7 @@ class FHIRStore:
             raise NotFoundError
         return res
 
-    def update(self, instance_id, resource, bypass_document_validation=False):
+    def update(self, instance_id, resource):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -179,7 +182,7 @@ class FHIRStore:
         try:
             resource = self.normalize_resource(resource)
         except pydantic.ValidationError as e:
-            return self.error(
+            return self.format_error(
                 [
                     f"{err['msg'] or 'Validation error'}: "
                     f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
@@ -187,15 +190,13 @@ class FHIRStore:
                 ]
             )
         update_result = self.db[resource.resource_type].replace_one(
-            {"id": instance_id},
-            json.loads(resource.json()),
-            bypass_document_validation=bypass_document_validation,
+            {"id": instance_id}, json.loads(resource.json()),
         )
         if update_result.matched_count == 0:
-            return self.error([f"{resource.resource_type} with id {instance_id} not found"])
+            return self.format_error([f"{resource.resource_type} with id {instance_id} not found"])
         return update_result
 
-    def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
+    def patch(self, resource_type, instance_id, patch):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -213,11 +214,7 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        update_result = self.db[resource_type].update_one(
-            {"id": instance_id},
-            {"$set": patch},
-            bypass_document_validation=bypass_document_validation,
-        )
+        update_result = self.db[resource_type].update_one({"id": instance_id}, {"$set": patch},)
         if update_result.matched_count == 0:
             raise NotFoundError
 
@@ -298,40 +295,34 @@ class FHIRStore:
             return fhir_search()
         except elasticsearch.exceptions.NotFoundError as e:
             return OperationOutcome(
-                **{
-                    "issue": [
-                        {
-                            "severity": "error",
-                            "code": "invalid",
-                            "diagnostics": f"{e.info['error']['index']}"
-                            "is not indexed in the database yet.",
-                        }
-                    ]
-                }
+                issue=[
+                    {
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": f"{e.info['error']['index']}"
+                        "is not indexed in the database yet.",
+                    }
+                ]
             )
         except elasticsearch.exceptions.RequestError as e:
             return OperationOutcome(
-                **{
-                    "issue": [
-                        {
-                            "severity": "error",
-                            "code": "invalid",
-                            "diagnostics": e.info["error"]["root_cause"],
-                        }
-                    ]
-                }
+                issue=[
+                    {
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": e.info["error"]["root_cause"],
+                    }
+                ]
             )
         except elasticsearch.exceptions.AuthenticationException as e:
             return OperationOutcome(
-                **{
-                    "issue": [
-                        {
-                            "severity": "error",
-                            "code": "invalid",
-                            "diagnostics": e.info["error"]["root_cause"],
-                        }
-                    ]
-                }
+                issue=[
+                    {
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": e.info["error"]["root_cause"],
+                    }
+                ]
             )
         except pydantic.ValidationError as e:
             issues = []
@@ -344,10 +335,10 @@ class FHIRStore:
                         f"{','.join([f'{e.model.get_resource_type()}.{l}' for l in err['loc']])}",
                     }
                 )
-            return OperationOutcome(**{"issue": issues})
+            return OperationOutcome(issue=issues)
         except fhirpath.exceptions.ValidationError as e:
             return OperationOutcome(
-                **{"issue": [{"severity": "error", "code": "invalid", "diagnostics": str(e)}]}
+                issue=[{"severity": "error", "code": "invalid", "diagnostics": str(e)}]
             )
 
     def upload_bundle(self, bundle):
@@ -369,7 +360,7 @@ class FHIRStore:
                 if isinstance(res, OperationOutcome):
                     logging.error(
                         f"could not upload resource {entry['resource']['resourceType']}"
-                        f"with id {entry['resource']['id']}"
+                        f"with id {entry['resource']['id']}: {[i.diagnostics for i in res.issue]}"
                     )
 
             except DuplicateKeyError as e:

@@ -6,12 +6,13 @@ from elasticsearch import Elasticsearch
 
 from fhirstore import FHIRStore
 
-if __name__ == "__main__":
-    client = MongoClient(username="arkhn", password="SuperSecurePassword2019")
+MONGO_USERNAME = os.getenv("MONGO_USERNAME")
+MONGO_PASSWORD = os.getenv("MONGO_PASSWORD")
+ES_URL = os.getenv("ES_URL")
 
-    client_es = Elasticsearch(
-        ["http://localhost:9200"], http_auth=("elastic", "SuperSecurePassword2019")
-    )
+if __name__ == "__main__":
+    client = MongoClient(username=MONGO_USERNAME, password=MONGO_PASSWORD)
+    client_es = Elasticsearch([ES_URL])
     # uncomment the next 2 following line if you wish to activate
     # the replication mode of mongo (required by monstache)
 

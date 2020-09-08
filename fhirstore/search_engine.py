@@ -1,17 +1,17 @@
-from typing import Optional
+from yarl import URL
 
-import elasticsearch
-
-from fhirpath.connectors import create_connection
+from fhirpath.connectors.factory.es import ElasticsearchConnection
 from fhirpath.engine.es import ElasticsearchEngine as BaseEngine
 from fhirpath.engine import dialect_factory
-from fhirpath.enums import FHIR_VERSION, EngineQueryType
+from fhirpath.enums import FHIR_VERSION
 from fhirpath_helpers.elasticsearch.mapping import generate_mappings
 
 
 class ElasticSearchEngine(BaseEngine):
-    def __init__(self, fhir_release, conn_factory, dialect_factory):
-        super().__init__(fhir_release, conn_factory, dialect_factory)
+    def __init__(self, es_client, fhir_release=FHIR_VERSION.R4):
+        super().__init__(
+            fhir_release, lambda x: ElasticsearchConnection(es_client), dialect_factory
+        )
         self.mappings = generate_mappings(FHIR_VERSION.R4.name)
 
     def calculate_field_index_name(self, resource_type):
@@ -21,8 +21,6 @@ class ElasticSearchEngine(BaseEngine):
         """
         complete url from current request
         return yarl.URL"""
-        from yarl import URL
-
         return URL("https://dev.arkhn.com")
 
     def get_index_name(self):
@@ -82,12 +80,3 @@ class ElasticSearchEngine(BaseEngine):
             self.connection._conn.indices.create(self.get_index_name(), body=body)
 
         self.connection._conn.indices.refresh(index=self.get_index_name())
-
-
-def create_search_engine(es_client: elasticsearch.Elasticsearch):
-    es_node = es_client.transport.hosts[0]
-    connection = create_connection(
-        f"es://{es_node.get('http_auth', 'elastic')}@{es_node['host']}:{es_node['port']}/",
-        "elasticsearch.Elasticsearch",
-    )
-    return ElasticSearchEngine(FHIR_VERSION.R4, lambda x: connection, dialect_factory)

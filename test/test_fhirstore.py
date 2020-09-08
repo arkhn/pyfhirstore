@@ -42,7 +42,7 @@ class TestFHIRStore:
         with pytest.raises(NotFoundError, match='unsupported FHIR resource: "unknown"'):
             store.create({"resourceType": "unknown"})
 
-    def test_create_bad_resource_schema(self, store: FHIRStore):
+    def test_create_invalid_resource(self, store: FHIRStore):
         """create() raises if json schema validation failed in mongo"""
 
         res = store.create({"resourceType": "Patient", "id": "ok", "nope": True})
