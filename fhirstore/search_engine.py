@@ -1,3 +1,4 @@
+from os import getenv
 from yarl import URL
 
 from fhirpath.connectors.factory.es import ElasticsearchConnection
@@ -5,6 +6,8 @@ from fhirpath.engine.es import ElasticsearchEngine as BaseEngine
 from fhirpath.engine import dialect_factory
 from fhirpath.enums import FHIR_VERSION
 from fhirpath_helpers.elasticsearch.mapping import generate_mappings
+
+FHIR_API_URL = getenv("FHIR_API_URL", "https://arkhn.com")
 
 
 class ElasticSearchEngine(BaseEngine):
@@ -21,7 +24,7 @@ class ElasticSearchEngine(BaseEngine):
         """
         complete url from current request
         return yarl.URL"""
-        return URL("https://dev.arkhn.com")
+        return URL(FHIR_API_URL)
 
     def get_index_name(self):
         """ """
