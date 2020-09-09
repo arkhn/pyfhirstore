@@ -4,7 +4,7 @@ import json
 from fhir.resources.bundle import Bundle
 from fhir.resources.operationoutcome import OperationOutcome
 
-from fhirstore import FHIRStore, NotFoundError
+from fhirstore import FHIRStore
 
 
 def assert_empty_bundle(result):
@@ -44,8 +44,10 @@ def index_resources(request, es_client):
 def test_search_bad_resource_type(store: FHIRStore):
     """search() raises error if resource type is unknown"""
 
-    with pytest.raises(NotFoundError, match='unsupported FHIR resource: "unknown"'):
-        store.search("unknown", params={})
+    res = store.search("unknown", params={})
+    assert isinstance(res, OperationOutcome)
+    assert len(res.issue) == 1
+    assert res.issue[0].diagnostics == 'unsupported FHIR resource: "unknown"'
 
 
 # BASIC SEARCH PARAMETERS OPERATIONS
