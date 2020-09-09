@@ -1,19 +1,22 @@
 import sys
-import re
 import logging
-import elasticsearch
+from typing import Union, Dict, List, Optional
+import json
 
-from collections import defaultdict
-from werkzeug.datastructures import ImmutableMultiDict
-from pymongo import MongoClient, ReturnDocument, ASCENDING
-from pymongo.errors import WriteError, OperationFailure, DuplicateKeyError
+import elasticsearch
+import pydantic
+from pymongo import MongoClient, ASCENDING
+from pymongo.errors import DuplicateKeyError
 from tqdm import tqdm
-from jsonschema import validate
+
+import fhirpath
+from fhirpath.enums import FHIR_VERSION
+from fhirpath.search import SearchContext, Search
+from fhir.resources import construct_fhir_element, FHIRAbstractModel
+from fhir.resources.operationoutcome import OperationOutcome
 
 from fhirstore import ARKHN_CODE_SYSTEMS
-from fhirstore.schema import SchemaParser
-from fhirstore.search import SearchArguments, build_core_query, Bundle
-from fhirstore.utils import get_reference_ids_from_bundle
+from fhirstore.search_engine import ElasticSearchEngine
 
 
 class NotFoundError(Exception):
@@ -34,39 +37,59 @@ class BadRequestError(Exception):
 
 class FHIRStore:
     def __init__(
-        self,
-        mongo_client: MongoClient,
-        es_client: elasticsearch.Elasticsearch,
-        db_name: str,
-        resources: dict = {},
+        self, mongo_client: MongoClient, es_client: elasticsearch.Elasticsearch, db_name: str,
     ):
         self.es = es_client
         self.db = mongo_client[db_name]
-        self.parser = SchemaParser()
-        self.resources = resources
+        self.resources = self.db.list_collection_names()
 
-    def reset(self):
+        if self.es and len(self.es.transport.hosts) > 0:
+            self.search_engine = ElasticSearchEngine(self.es, FHIR_VERSION.R4)
+        else:
+            logging.warning("No elasticsearch client provided, search features are disabled")
+
+    @property
+    def initialized(self):
+        return len(self.resources) > 0
+
+    def reset(self, mongo=True, es=True):
         """
         Drops all collections currently in the database.
         """
-        for collection in self.db.list_collection_names():
-            self.db.drop_collection(collection)
-        self.resources = {}
+        if mongo and not es:
+            raise Exception("You also need to drop ES indices when resetting mongo")
 
-    def bootstrap(self, depth=3, resource=None, show_progress=True):
+        if mongo:
+            for collection in self.resources:
+                self.db.drop_collection(collection)
+            self.resources = []
+
+        if es:
+            self.es.indices.delete("_all")
+
+    def bootstrap(self, resource: Optional[str] = None, show_progress: Optional[bool] = True):
         """
         Parses the FHIR json-schema and create the collections according to it.
         """
-        resources = self.parser.parse(depth=depth, resource=resource)
+        existing_resources = self.db.list_collection_names()
+
+        # Bootstrap elastic indices
+        self.search_engine.create_es_index(resource=resource)
+
+        # Bootstrap mongoDB collections
+        self.resources = (
+            [*self.resources, resource] if resource else self.search_engine.mappings.keys()
+        )
+        resources = [r for r in self.resources if r not in existing_resources]
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
-        for resource_name, schema in resources:
-            self.db.create_collection(resource_name, **{"validator": {"$jsonSchema": schema}})
+            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...",)
+        for resource_type in resources:
+            self.db.create_collection(resource_type)
             # Add unique constraint on id
-            self.db[resource_name].create_index("id", unique=True)
+            self.db[resource_type].create_index("id", unique=True)
             # Add unique constraint on (identifier.system, identifier.value)
-            self.db[resource_name].create_index(
+            self.db[resource_type].create_index(
                 [
                     ("identifier.system", ASCENDING),
                     ("identifier.value", ASCENDING),
@@ -76,55 +99,52 @@ class FHIRStore:
                 unique=True,
                 partialFilterExpression={"identifier": {"$exists": True}},
             )
-            self.resources[resource_name] = schema
-
-    def resume(self, show_progress=True):
-        """
-        Loads the existing resources schema from the database.
-        """
-        collections = self.db.list_collection_names()
-
-        if show_progress:
-            tqdm.write("\n", end="")
-            collections = tqdm(
-                collections, file=sys.stdout, desc="Loading collections from database...",
-            )
-
-        for collection in collections:
-            json_schema = self.db.get_collection(collection).options()["validator"]["$jsonSchema"]
-            self.resources[collection] = json_schema
 
     def validate_resource_type(self, resource_type):
-        if resource_type is None:
+        if not resource_type:
             raise BadRequestError("resourceType is missing in resource")
-
         elif resource_type not in self.resources:
             raise NotFoundError(f'unsupported FHIR resource: "{resource_type}"')
 
-    def create(self, resource, bypass_document_validation=False):
+    def normalize_resource(self, resource: Union[Dict, FHIRAbstractModel]) -> FHIRAbstractModel:
+        if isinstance(resource, dict):
+            resource_type = resource.get("resourceType")
+            self.validate_resource_type(resource_type)
+            resource = construct_fhir_element(resource_type, resource)
+        elif not isinstance(resource, FHIRAbstractModel):
+            raise BadRequestError(
+                "Provided resource must be of type Union[Dict, FHIRAbstractModel]"
+            )
+
+        return resource
+
+    def format_error(self, errors: List[str], severity="error", code="invalid") -> OperationOutcome:
+        issues = [{"severity": severity, "code": code, "diagnostics": err} for err in errors]
+        return OperationOutcome(issue=issues)
+
+    def create(self, resource: Union[Dict, FHIRAbstractModel]):
         """
         Creates a resource. The structure of the resource will be checked
         against its json-schema FHIR definition.
 
         Args:
-            - resource_type: type of the resource (eg: 'Patient')
-            - id: The expected id is the resource 'id', not the
-                  internal database identifier ('_id').
+            - resource: either a dict with the resource data or a fhir.resources.FHIRAbstractModel
 
-        Returns: The updated resource.
+        Returns: The created resource.
         """
-        resource_type = resource.get("resourceType")
-        self.validate_resource_type(resource_type)
-
         try:
-            res = self.db[resource_type].insert_one(
-                resource, bypass_document_validation=bypass_document_validation
+            resource = self.normalize_resource(resource)
+        except pydantic.ValidationError as e:
+            return self.format_error(
+                [
+                    f"{err['msg'] or 'Validation error'}: "
+                    f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
+                    for err in e.errors()
+                ]
             )
-            return {**resource, "_id": res.inserted_id}
-        except DuplicateKeyError as e:
-            raise e
-        except WriteError:
-            self.validate(resource)
+
+        res = self.db[resource.resource_type].insert_one(json.loads(resource.json()))
+        return {**resource.dict(), "_id": res.inserted_id}
 
     def read(self, resource_type, instance_id):
         """
@@ -139,12 +159,12 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        res = self.db[resource_type].find_one({"id": instance_id})
+        res = self.db[resource_type].find_one({"id": instance_id}, projection={"_id": False})
         if res is None:
             raise NotFoundError
         return res
 
-    def update(self, resource_type, instance_id, resource, bypass_document_validation=False):
+    def update(self, instance_id, resource):
         """
         Update a resource given its type, id and a resource. It applies
         a "replace" operation, therefore the resource will be overriden.
@@ -159,21 +179,24 @@ class FHIRStore:
 
         Returns: The updated resource.
         """
-        self.validate_resource_type(resource_type)
-
         try:
-            update_result = self.db[resource_type].replace_one(
-                {"id": instance_id},
-                resource,
-                bypass_document_validation=bypass_document_validation,
+            resource = self.normalize_resource(resource)
+        except pydantic.ValidationError as e:
+            return self.format_error(
+                [
+                    f"{err['msg'] or 'Validation error'}: "
+                    f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
+                    for err in e.errors()
+                ]
             )
-            if update_result.matched_count == 0:
-                raise NotFoundError
-            return update_result
-        except OperationFailure:
-            self.validate(resource)
+        update_result = self.db[resource.resource_type].replace_one(
+            {"id": instance_id}, json.loads(resource.json()),
+        )
+        if update_result.matched_count == 0:
+            return self.format_error([f"{resource.resource_type} with id {instance_id} not found"])
+        return update_result
 
-    def patch(self, resource_type, instance_id, patch, bypass_document_validation=False):
+    def patch(self, resource_type, instance_id, patch):
         """
         Update a resource given its type, id and a patch. It applies
         a "patch" operation rather than a "replace", only the fields
@@ -191,18 +214,11 @@ class FHIRStore:
         """
         self.validate_resource_type(resource_type)
 
-        try:
-            update_result = self.db[resource_type].update_one(
-                {"id": instance_id},
-                {"$set": patch},
-                bypass_document_validation=bypass_document_validation,
-            )
-            if update_result.matched_count == 0:
-                raise NotFoundError
-            return update_result
-        except OperationFailure:
-            resource = self.read(resource_type, instance_id)
-            self.validate({**resource, **patch})
+        update_result = self.db[resource_type].update_one({"id": instance_id}, {"$set": patch},)
+        if update_result.matched_count == 0:
+            raise NotFoundError
+
+        return update_result
 
     def delete(self, resource_type, instance_id=None, resource_id=None, source_id=None):
         """
@@ -251,24 +267,7 @@ class FHIRStore:
 
         return res.deleted_count
 
-    def validate(self, resource):
-        """
-        Validates the given resource against its own schema.
-        This is much more efficient than running th validation against the
-        whole FHIR json schema.
-        This function is useful because MongoDB does not provide any feedback
-        about the schema validation error other than "Schema validation failed"
-
-        Args:
-            resource: The object to be validated against the schema.
-                      It is expected to have the "resourceType" property.
-        """
-        schema = self.resources.get(resource["resourceType"])
-        if schema is None:
-            raise Exception(f"missing schema for resource {resource}")
-        validate(instance=resource, schema=schema)
-
-    def search(self, search_args: SearchArguments):
+    def search(self, resource_type=None, query_string=None, params=None):
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -278,134 +277,69 @@ class FHIRStore:
             - params: search parameters as returned by the API. For a simple
             search, the parameters should be of the type {"key": "value"}
             eg: {"gender":"female"}, with possible modifiers {"address.city:exact":"Paris"}.
-            If a search is made one field with multiple arguments (eg: language is French 
-            OR English), params should be a payload of type {"multiple": {"language": 
-            ["French", "English"]}}. 
-            If a search has more than one field queried, params should be a payload of 
+            If a search is made one field with multiple arguments (eg: language is French
+            OR English), params should be a payload of type {"multiple": {"language":
+            ["French", "English"]}}.
+            If a search has more than one field queried, params should be a payload of
             the form: {"address.city": ["Paris"], "multiple":
             {"language": ["French", "English"]}}.
         Returns: A bundle with the results of the search, as required by FHIR
         search standard.
         """
-        self.validate_resource_type(search_args.resource_type)
+        if resource_type:
+            self.validate_resource_type(resource_type)
 
-        core_query = build_core_query(search_args.core_args)
-        bundle = Bundle()
-
-        if search_args.formatting_args["is_summary_count"]:
-            hits = self.es.count(
-                body={"query": core_query}, index=f"fhirstore.{search_args.resource_type.lower()}",
+        search_context = SearchContext(self.search_engine, resource_type)
+        fhir_search = Search(search_context, query_string=query_string, params=params)
+        try:
+            return fhir_search()
+        except elasticsearch.exceptions.NotFoundError as e:
+            return OperationOutcome(
+                issue=[
+                    {
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": f"{e.info['error']['index']}"
+                        "is not indexed in the database yet.",
+                    }
+                ]
             )
-            bundle.fill(hits, search_args.formatting_args)
-
-        else:
-            query = {
-                "min_score": 0.01,
-                "from": search_args.meta_args["offset"],
-                "size": search_args.meta_args["result_size"],
-                "query": core_query,
-            }
-
-            if search_args.formatting_args["sort"]:
-                query["sort"] = search_args.formatting_args["sort"]
-
-            if search_args.formatting_args["elements"]:
-                query["_source"] = search_args.formatting_args["elements"]
-            # .lower() is used to fix the fact that monstache changes resourceTypes to
-            # all lower case
-            hits = self.es.search(
-                body=query, index=f"fhirstore.{search_args.resource_type.lower()}"
+        except elasticsearch.exceptions.RequestError as e:
+            return OperationOutcome(
+                issue=[
+                    {
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": e.info["error"]["root_cause"],
+                    }
+                ]
             )
-
-            bundle.fill(hits, search_args.formatting_args)
-
-        return bundle
-
-    def comprehensive_search(self, resource_type: str, args: ImmutableMultiDict):
-        """ To deal with keywords : _include, _revinclude, _has
-        """
-        search_args = SearchArguments()
-        search_args.parse(args, resource_type)
-        # handle _has
-        rev_chain = search_args.reverse_chain
-        if rev_chain and rev_chain.is_queried:
-            inner_ids = []
-            # If there is a double _has chain
-            if len(rev_chain.has_args) == 2:
-                outer_ids = []
-                rev_args_outer = SearchArguments()
-
-                # parse the outer chain and search the store
-                rev_args_outer.parse(rev_chain.has_args[1], rev_chain.resources_type[1])
-                chained_bundle_outer = self.search(rev_args_outer)
-
-                outer_ids.extend(
-                    get_reference_ids_from_bundle(chained_bundle_outer, rev_chain.references[1])
+        except elasticsearch.exceptions.AuthenticationException as e:
+            return OperationOutcome(
+                issue=[
+                    {
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": e.info["error"]["root_cause"],
+                    }
+                ]
+            )
+        except pydantic.ValidationError as e:
+            issues = []
+            for err in e.errors():
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "invalid",
+                        "diagnostics": f"{err['msg']}: "
+                        f"{','.join([f'{e.model.get_resource_type()}.{l}' for l in err['loc']])}",
+                    }
                 )
-
-                # fill the inner chain with the ids from the previous search
-                rev_chain.has_args[0][rev_chain.fields[0]] = outer_ids
-
-            # If there is a single _has chain, fill it with the value
-            elif len(rev_chain.has_args) == 1:
-                rev_chain.has_args[0][rev_chain.fields[0]] = rev_chain.value
-
-            rev_args_inner = SearchArguments()
-            rev_args_inner.parse(rev_chain.has_args[0], rev_chain.resources_type[0])
-            chained_bundle_inner = self.search(rev_args_inner)
-
-            inner_ids.extend(
-                get_reference_ids_from_bundle(chained_bundle_inner, rev_chain.references[0])
+            return OperationOutcome(issue=issues)
+        except fhirpath.exceptions.ValidationError as e:
+            return OperationOutcome(
+                issue=[{"severity": "error", "code": "invalid", "diagnostics": str(e)}]
             )
-
-            if inner_ids == []:
-                bundle = Bundle()
-                bundle.fill_error(
-                    severity="warning",
-                    code="not-found",
-                    details=f"No {rev_chain.resources_type[0]} matching search criteria",
-                )
-                return bundle
-
-            search_args.core_args["multiple"] = {"id": inner_ids}
-
-        bundle = self.search(search_args)
-
-        ## handle _include
-        if (
-            search_args.formatting_args["include"]
-            and not search_args.formatting_args["is_summary_count"]
-        ):
-            included_hits = {}
-            for attribute in search_args.formatting_args["include"]:
-                include_refs = defaultdict(set)
-                try:
-                    for item in bundle.content["entry"]:
-                        if item["search"]["mode"] == "match":
-                            ref_to_parse = item["resource"][attribute]["reference"].split(
-                                sep="/", maxsplit=1
-                            )
-                            include_refs[ref_to_parse[0]].add(ref_to_parse[1])
-                    for included_resource, included_ids in include_refs.items():
-                        include_core_query = build_core_query({"multiple": {"id": included_ids}})
-                        included_hits = self.es.search(
-                            body={
-                                "min_score": 0.01,
-                                "from": search_args.meta_args["offset"],
-                                "size": search_args.meta_args["result_size"],
-                                "query": include_core_query,
-                            },
-                            index=f"fhirstore.{included_resource.lower()}",
-                        )
-                        bundle.append(included_hits, search_args.formatting_args)
-                except KeyError as e:
-                    logging.warning(f"Attribute: {e} is empty")
-                except elasticsearch.exceptions.NotFoundError as e:
-                    logging.warning(
-                        f"{e.info['error']['index']} is not indexed in the database yet."
-                    )
-
-        return bundle
 
     def upload_bundle(self, bundle):
         """
@@ -414,7 +348,7 @@ class FHIRStore:
         Args:
             - bundle: the fhir bundle containing the resources.
         """
-        if not "resourceType" in bundle or bundle["resourceType"] != "Bundle":
+        if "resourceType" not in bundle or bundle["resourceType"] != "Bundle":
             raise Exception("input must be a FHIR Bundle resource")
 
         for entry in bundle["entry"]:
@@ -422,6 +356,12 @@ class FHIRStore:
                 raise Exception("Bundle entry is missing a resource.")
 
             try:
-                self.create(entry["resource"])
+                res = self.create(entry["resource"])
+                if isinstance(res, OperationOutcome):
+                    logging.error(
+                        f"could not upload resource {entry['resource']['resourceType']}"
+                        f"with id {entry['resource']['id']}: {[i.diagnostics for i in res.issue]}"
+                    )
+
             except DuplicateKeyError as e:
                 logging.warning(f"Document already existed: {e}")

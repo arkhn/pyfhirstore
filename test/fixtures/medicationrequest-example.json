@@ -29,27 +29,15 @@
   ],
   "status": "active",
   "intent": "order",
-  "medicationReference": {
-    "reference": "#med0320"
-  },
-  "subject": {
-    "reference": "Patient/pat1",
-    "display": "Donald Duck"
-  },
+  "medicationReference": { "reference": "#med0320" },
+  "subject": { "reference": "Patient/pat1", "display": "Donald Duck" },
   "encounter": {
     "reference": "Encounter/f001",
     "display": "encounter who leads to this prescription"
   },
-  "supportingInformation": [
-    {
-      "reference": "Coverage/SP1234"
-    }
-  ],
+  "supportingInformation": [{ "reference": "Coverage/SP1234" }],
   "authoredOn": "2015-01-15",
-  "requester": {
-    "reference": "Practitioner/f007",
-    "display": "Patrick Pump"
-  },
+  "requester": { "reference": "Practitioner/f007", "display": "Patrick Pump" },
   "reasonCode": [
     {
       "coding": [
@@ -61,11 +49,7 @@
       ]
     }
   ],
-  "note": [
-    {
-      "text": "Patient told to take with food"
-    }
-  ],
+  "note": [{ "text": "Patient told to take with food" }],
   "dosageInstruction": [
     {
       "sequence": 1,
@@ -82,11 +66,7 @@
         }
       ],
       "timing": {
-        "repeat": {
-          "frequency": 1,
-          "period": 1,
-          "periodUnit": "d"
-        }
+        "repeat": { "frequency": 1, "period": 1, "periodUnit": "d" }
       },
       "route": {
         "coding": [
@@ -141,11 +121,7 @@
         }
       ],
       "timing": {
-        "repeat": {
-          "frequency": 4,
-          "period": 1,
-          "periodUnit": "d"
-        }
+        "repeat": { "frequency": 4, "period": 1, "periodUnit": "d" }
       },
       "route": {
         "coding": [
@@ -178,10 +154,7 @@
     }
   ],
   "dispenseRequest": {
-    "validityPeriod": {
-      "start": "2015-01-15",
-      "end": "2016-01-15"
-    },
+    "validityPeriod": { "start": "2015-01-15", "end": "2016-01-15" },
     "numberOfRepeatsAllowed": 1,
     "quantity": {
       "value": 6,
