@@ -148,7 +148,13 @@ class FHIRStore:
         except BadRequestError as e:
             return self.format_error([str(e)])
 
-        self.db[resource.resource_type].insert_one(json.loads(resource.json()))
+        try:
+            self.db[resource.resource_type].insert_one(json.loads(resource.json()))
+        except DuplicateKeyError:
+            return self.format_error(
+                [f"Resource {resource.resource_type} {resource.id} already exists"]
+            )
+
         return resource
 
     def read(self, resource_type, instance_id) -> Union[FHIRAbstractModel, OperationOutcome]:

@@ -83,6 +83,21 @@ class TestFHIRStore:
         inserted = mongo_client["Patient"].find_one({"id": result.id}, projection={"_id": False})
         assert inserted == test_patient
 
+    def test_create_resource_duplicate(
+        self, store: FHIRStore, mongo_client: MongoClient, test_patient
+    ):
+        """create() correctly inserts a document in the database"""
+        patient_model = Patient(**test_patient)
+        result = store.create(patient_model)
+        assert isinstance(result, Patient)
+        inserted = mongo_client["Patient"].find_one({"id": result.id}, projection={"_id": False})
+        assert inserted == test_patient
+
+        result = store.create(patient_model)
+        assert isinstance(result, OperationOutcome)
+        assert len(result.issue) == 1
+        assert result.issue[0].diagnostics == "Resource Patient pat1 already exists"
+
     def test_create_resource_with_extension(self, store: FHIRStore, mongo_client: MongoClient):
         """resources using extensions are not
         handled yet, an error should be raised"""
