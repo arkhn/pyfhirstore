@@ -2,15 +2,13 @@ import json
 import pytest
 from unittest.mock import patch
 
-from bson.objectid import ObjectId
 from pymongo import MongoClient
-from pymongo.errors import DuplicateKeyError
-from jsonschema.exceptions import ValidationError
 
 from fhir.resources.operationoutcome import OperationOutcome
 from fhir.resources.patient import Patient
 
-from fhirstore import FHIRStore, BadRequestError, ARKHN_CODE_SYSTEMS
+from fhirstore import FHIRStore, ARKHN_CODE_SYSTEMS
+from fhirstore.errors import FHIRStoreError
 
 
 @pytest.fixture(autouse=True)
@@ -96,7 +94,7 @@ class TestFHIRStore:
         result = store.create(patient_model)
         assert isinstance(result, OperationOutcome)
         assert len(result.issue) == 1
-        assert result.issue[0].diagnostics == "Resource Patient pat1 already exists"
+        assert "Resource Patient pat1 already exists" in result.issue[0].diagnostics
 
     def test_create_resource_with_extension(self, store: FHIRStore, mongo_client: MongoClient):
         """resources using extensions are not
@@ -129,49 +127,47 @@ class TestFHIRStore:
         )
 
         # index on id
-        with pytest.raises(DuplicateKeyError, match='dup key: { id: "pat1" }'):
-            store.create({"resourceType": "Patient", "id": "pat1"})
+        result = store.create({"resourceType": "Patient", "id": "pat1"})
+        assert isinstance(result, OperationOutcome)
+        assert len(result.issue) == 1
+        assert "Resource Patient pat1 already exists" in result.issue[0].diagnostics
 
         # index on (identifier.value, identifier.system)
-        with pytest.raises(
-            DuplicateKeyError,
-            match='dup key: { identifier.system: "sys", identifier.value: "val", \
-identifier.type.coding.system: null, identifier.type.coding.code: null }',
-        ):
-            store.create(
-                {
-                    "identifier": [{"value": "val", "system": "sys"}],
-                    "resourceType": "Patient",
-                    "id": "pat2",
-                }
-            )
-        with pytest.raises(
-            DuplicateKeyError,
-            match='dup key: { identifier.system: null, identifier.value: "just_value", \
-identifier.type.coding.system: null, identifier.type.coding.code: null }',
-        ):
-            store.create(
-                {"identifier": [{"value": "just_value"}], "resourceType": "Patient", "id": "pat2"}
-            )
-        with pytest.raises(
-            DuplicateKeyError,
-            match='dup key: { identifier.system: "system", identifier.value: "value", \
-identifier.type.coding.system: "type_system", identifier.type.coding.code: "type_code" }',
-        ):
-            store.create(
-                {
-                    "identifier": [
-                        {"value": "new_val"},
-                        {
-                            "value": "value",
-                            "system": "system",
-                            "type": {"coding": [{"system": "type_system", "code": "type_code"}]},
-                        },
-                    ],
-                    "resourceType": "Patient",
-                    "id": "pat2",
-                }
-            )
+        result = store.create(
+            {
+                "identifier": [{"value": "val", "system": "sys"}],
+                "resourceType": "Patient",
+                "id": "pat2",
+            }
+        )
+        assert isinstance(result, OperationOutcome)
+        assert len(result.issue) == 1
+        assert "Resource Patient pat2 already exists" in result.issue[0].diagnostics
+
+        result = store.create(
+            {"identifier": [{"value": "just_value"}], "resourceType": "Patient", "id": "pat2"}
+        )
+        assert isinstance(result, OperationOutcome)
+        assert len(result.issue) == 1
+        assert "Resource Patient pat2 already exists" in result.issue[0].diagnostics
+
+        result = store.create(
+            {
+                "identifier": [
+                    {"value": "new_val"},
+                    {
+                        "value": "value",
+                        "system": "system",
+                        "type": {"coding": [{"system": "type_system", "code": "type_code"}]},
+                    },
+                ],
+                "resourceType": "Patient",
+                "id": "pat2",
+            }
+        )
+        assert isinstance(result, OperationOutcome)
+        assert len(result.issue) == 1
+        assert "Resource Patient pat2 already exists" in result.issue[0].diagnostics
 
     ###
     # FHIRStore.read()
@@ -312,7 +308,7 @@ identifier.type.coding.system: "type_system", identifier.type.coding.code: "type
         """delete() returns None when no matching document was found"""
 
         with pytest.raises(
-            BadRequestError,
+            FHIRStoreError,
             match="one of: 'instance_id', 'resource_id' or 'source_id' are required",
         ):
             store.delete("Patient")

@@ -1,9 +1,14 @@
 import sys
 import logging
-from typing import Union, Dict, List, Optional
+from typing import Union, Dict, Optional
 import json
 
-import elasticsearch
+from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import (
+    NotFoundError as ESNotFoundError,
+    RequestError as ESRequestError,
+    AuthenticationException as ESAuthenticationException,
+)
 import pydantic
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import DuplicateKeyError
@@ -17,28 +22,20 @@ from fhir.resources.operationoutcome import OperationOutcome
 from fhir.resources.bundle import Bundle
 
 from fhirstore import ARKHN_CODE_SYSTEMS
+from fhirstore.errors import (
+    FHIRStoreError,
+    NotSupportedError,
+    ValidationError,
+    DuplicateError,
+    RequiredError,
+    NotFoundError,
+)
 from fhirstore.search_engine import ElasticSearchEngine
-
-
-class BadRequestError(Exception):
-    """
-    BadRequestError is returned when the client request could not be processed.
-    """
-
-    pass
-
-
-class NotSupportedError(Exception):
-    """
-    BadRequestError is returned when the client request could not be processed.
-    """
-
-    pass
 
 
 class FHIRStore:
     def __init__(
-        self, mongo_client: MongoClient, es_client: elasticsearch.Elasticsearch, db_name: str,
+        self, mongo_client: MongoClient, es_client: Elasticsearch, db_name: str,
     ):
         self.es = es_client
         self.db = mongo_client[db_name]
@@ -58,7 +55,7 @@ class FHIRStore:
         Drops all collections currently in the database.
         """
         if mongo and not es:
-            raise BadRequestError("You also need to drop ES indices when resetting mongo")
+            raise FHIRStoreError("You also need to drop ES indices when resetting mongo")
 
         if mongo:
             for collection in self.resources:
@@ -105,21 +102,15 @@ class FHIRStore:
         if isinstance(resource, dict):
             resource_type = resource.get("resourceType")
             if not resource_type:
-                raise BadRequestError(f"resourceType is missing")
+                raise RequiredError("resourceType is missing")
             elif resource_type not in self.resources:
                 raise NotSupportedError(f'unsupported FHIR resource: "{resource_type}"')
             return construct_fhir_element(resource.get("resourceType"), resource)
 
         elif not isinstance(resource, FHIRAbstractModel):
-            raise BadRequestError(
-                "Provided resource must be of type Union[Dict, FHIRAbstractModel]"
-            )
+            raise FHIRStoreError("Provided resource must be of type Union[Dict, FHIRAbstractModel]")
 
         return resource
-
-    def format_error(self, errors: List[str], severity="error", code="invalid") -> OperationOutcome:
-        issues = [{"severity": severity, "code": code, "diagnostics": err} for err in errors]
-        return OperationOutcome(issue=issues)
 
     def create(
         self, resource: Union[Dict, FHIRAbstractModel]
@@ -129,31 +120,23 @@ class FHIRStore:
         against its json-schema FHIR definition.
 
         Args:
-            - resource: the created resource as fhir.resources.FHIRAbstractModel
+            - resource: either a dict with the resource data or a fhir.resources.FHIRAbstractModel
 
-        Returns: The created resource.
+        Returns: The created resource as fhir.resources.FHIRAbstractModel.
         """
         try:
             resource = self.normalize_resource(resource)
         except pydantic.ValidationError as e:
-            return self.format_error(
-                [
-                    f"{err['msg'] or 'Validation error'}: "
-                    f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
-                    for err in e.errors()
-                ]
-            )
-        except NotSupportedError as e:
-            return self.format_error([str(e)], code="not-supported")
-        except BadRequestError as e:
-            return self.format_error([str(e)])
+            return ValidationError(e).format()
+        except FHIRStoreError as e:
+            return e.format()
 
         try:
             self.db[resource.resource_type].insert_one(json.loads(resource.json()))
-        except DuplicateKeyError:
-            return self.format_error(
-                [f"Resource {resource.resource_type} {resource.id} already exists"]
-            )
+        except DuplicateKeyError as e:
+            return DuplicateError(
+                f"Resource {resource.resource_type} {resource.id} already exists: {e}"
+            ).format()
 
         return resource
 
@@ -169,15 +152,11 @@ class FHIRStore:
         Returns: The found resource.
         """
         if resource_type not in self.resources:
-            return self.format_error(
-                [f'unsupported FHIR resource: "{resource_type}"'], code="not-supported"
-            )
+            return NotSupportedError(f'unsupported FHIR resource: "{resource_type}"').format()
 
         res = self.db[resource_type].find_one({"id": instance_id}, projection={"_id": False})
         if res is None:
-            return self.format_error(
-                [f"{resource_type} with id {instance_id} not found"], code="not-found"
-            )
+            return NotFoundError(f"{resource_type} with id {instance_id} not found").format()
 
         return construct_fhir_element(resource_type, res)
 
@@ -199,25 +178,17 @@ class FHIRStore:
         try:
             resource = self.normalize_resource(resource)
         except pydantic.ValidationError as e:
-            return self.format_error(
-                [
-                    f"{err['msg'] or 'Validation error'}: "
-                    f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
-                    for err in e.errors()
-                ]
-            )
-        except NotSupportedError as e:
-            return self.format_error([str(e)], code="not-supported")
-        except BadRequestError as e:
-            return self.format_error([str(e)])
+            return ValidationError(e).format()
+        except FHIRStoreError as e:
+            return e.format()
 
         update_result = self.db[resource.resource_type].replace_one(
             {"id": instance_id}, json.loads(resource.json()),
         )
         if update_result.matched_count == 0:
-            return self.format_error(
-                [f"{resource.resource_type} with id {instance_id} not found"], code="not-found"
-            )
+            return NotFoundError(
+                f"{resource.resource_type} with id {instance_id} not found"
+            ).format()
 
         return resource
 
@@ -240,37 +211,23 @@ class FHIRStore:
         Returns: The updated resource.
         """
         if resource_type not in self.resources:
-            return self.format_error(
-                [f'unsupported FHIR resource: "{resource_type}"'], code="not-supported"
-            )
+            return NotSupportedError(f'unsupported FHIR resource: "{resource_type}"').format()
 
         res = self.db[resource_type].find_one({"id": instance_id}, projection={"_id": False})
         if res is None:
-            return self.format_error(
-                [f"{resource_type} with id {instance_id} not found"], code="not-found"
-            )
+            return NotFoundError(f"{resource_type} with id {instance_id} not found").format()
 
         patched_resource = {**construct_fhir_element(resource_type, res).dict(), **patch}
         try:
             resource = self.normalize_resource(patched_resource)
         except pydantic.ValidationError as e:
-            return self.format_error(
-                [
-                    f"{err['msg'] or 'Validation error'}: "
-                    f"{e.model.get_resource_type()}.{'.'.join([str(l) for l in err['loc']])}"
-                    for err in e.errors()
-                ]
-            )
-        except NotSupportedError as e:
-            return self.format_error([str(e)], code="not-supported")
-        except BadRequestError as e:
-            return self.format_error([str(e)])
+            return ValidationError(e).format()
+        except FHIRStoreError as e:
+            return e.format()
 
         update_result = self.db[resource_type].update_one({"id": instance_id}, {"$set": patch})
         if update_result.matched_count == 0:
-            return self.format_error(
-                [f"{resource.resource_type} with id {instance_id} not found"], code="not-found"
-            )
+            return NotFoundError(f"{resource_type} with id {instance_id} not found").format()
 
         return resource
 
@@ -288,16 +245,13 @@ class FHIRStore:
         Returns: The id of the deleted resource.
         """
         if resource_type not in self.resources:
-            return self.format_error(
-                [f'unsupported FHIR resource: "{resource_type}"'], code="not-supported"
-            )
+            return NotSupportedError(f'unsupported FHIR resource: "{resource_type}"').format()
 
         if instance_id:
             res = self.db[resource_type].delete_one({"id": instance_id})
             if res.deleted_count == 0:
-                return self.format_error(
-                    [f"{resource_type} with id {instance_id} not found"], code="not-found"
-                )
+                return NotFoundError(f"{resource_type} with id {instance_id} not found").format()
+
         elif resource_id:
             res = self.db[resource_type].delete_many(
                 {
@@ -310,9 +264,10 @@ class FHIRStore:
                 }
             )
             if res.deleted_count == 0:
-                return self.format_error(
-                    [f"{resource_type} with resource_id {resource_id} not found"], code="not-found"
-                )
+                return NotFoundError(
+                    f"{resource_type} with resource_id {resource_id} not found"
+                ).format()
+
         elif source_id:
             res = self.db[resource_type].delete_many(
                 {
@@ -325,18 +280,21 @@ class FHIRStore:
                 }
             )
             if res.deleted_count == 0:
-                return self.format_error(
-                    [f"{resource_type} with source_id {source_id} not found"], code="not-found"
-                )
-        else:
-            raise BadRequestError(
-                "one of: 'instance_id', 'resource_id' or 'source_id' are required"
-            )
+                return NotFoundError(
+                    f"{resource_type} with source_id {source_id} not found"
+                ).format()
 
-        return self.format_error(
-            [f"deleted {res.deleted_count} {resource_type}"],
-            severity="information",
-            code="informational",
+        else:
+            raise FHIRStoreError("one of: 'instance_id', 'resource_id' or 'source_id' are required")
+
+        return OperationOutcome(
+            issue=[
+                {
+                    "severity": "information",
+                    "code": "informational",
+                    "diagnostics": f"deleted {res.deleted_count} {resource_type}",
+                }
+            ]
         )
 
     def search(
@@ -361,33 +319,24 @@ class FHIRStore:
         search standard.
         """
         if resource_type and resource_type not in self.resources:
-            return self.format_error(
-                [f'unsupported FHIR resource: "{resource_type}"'], code="not-supported"
-            )
+            return NotSupportedError(f'unsupported FHIR resource: "{resource_type}"').format()
 
         search_context = SearchContext(self.search_engine, resource_type)
         fhir_search = Search(search_context, query_string=query_string, params=params)
         try:
             return fhir_search()
-        except elasticsearch.exceptions.NotFoundError as e:
-            return self.format_error(
-                [f"{e.info['error']['index']} is not indexed in the database yet."],
-                code="not-found",
-            )
-        except elasticsearch.exceptions.RequestError as e:
-            return self.format_error([e.info["error"]["root_cause"]])
-        except elasticsearch.exceptions.AuthenticationException as e:
-            return self.format_error([e.info["error"]["root_cause"]])
+        except ESNotFoundError as e:
+            return NotFoundError(
+                f"{e.info['error']['index']} is not indexed in the database yet."
+            ).format()
+        except (ESRequestError, ESAuthenticationException) as e:
+            return FHIRStoreError(e.info["error"]["root_cause"]).format()
+        except ESAuthenticationException as e:
+            return FHIRStoreError(e.info["error"]["root_cause"]).format()
         except pydantic.ValidationError as e:
-            diagnostics = []
-            for err in e.errors():
-                diagnostics.append(
-                    f"{err['msg']}: "
-                    f"{','.join([f'{e.model.get_resource_type()}.{l}' for l in err['loc']])}",
-                )
-            return self.format_error(diagnostics)
+            return ValidationError(e).format()
         except fhirpath.exceptions.ValidationError as e:
-            return self.format_error([str(e)])
+            return ValidationError(str(e)).format()
 
     def upload_bundle(self, bundle) -> Union[None, OperationOutcome]:
         """
@@ -397,13 +346,13 @@ class FHIRStore:
             - bundle: the fhir bundle containing the resources.
         """
         if "resourceType" not in bundle or bundle["resourceType"] != "Bundle":
-            return self.format_error(
-                [f"input must be a FHIR Bundle resource, got {bundle.get('resourceType')}"]
-            )
+            return FHIRStoreError(
+                f"input must be a FHIR Bundle resource, got {bundle.get('resourceType')}"
+            ).format()
 
         for entry in bundle["entry"]:
             if "resource" not in entry:
-                return self.format_error(["Bundle entry is missing a resource."])
+                return RequiredError("Bundle entry is missing a resource.")
 
             try:
                 res = self.create(entry["resource"])

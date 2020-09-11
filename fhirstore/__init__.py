@@ -6,4 +6,12 @@ class ARKHN_CODE_SYSTEMS:
     source = f"{ARKHN_TERMINOLOGY_SYSTEM}/source"
 
 
-from .fhirstore import FHIRStore, BadRequestError, NotSupportedError  # noqa
+from .fhirstore import FHIRStore  # noqa
+from .errors import (  # noqa
+    FHIRStoreError,
+    NotSupportedError,
+    ValidationError,
+    DuplicateError,
+    RequiredError,
+    NotFoundError,
+)
