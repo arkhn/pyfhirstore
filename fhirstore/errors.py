@@ -66,7 +66,7 @@ class DuplicateError(FHIRStoreError):
 
 class RequiredError(FHIRStoreError):
     """
-    DuplicateError is returned when a required element is missing.
+    RequiredError is returned when a required element is missing.
     """
 
     def __init__(self, error: str):
@@ -75,7 +75,7 @@ class RequiredError(FHIRStoreError):
 
 class NotFoundError(FHIRStoreError):
     """
-    DuplicateError is returned when a required element is missing.
+    NotFoundError is returned when a resource failed to be found.
     """
 
     def __init__(self, error: str):
