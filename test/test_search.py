@@ -53,9 +53,7 @@ def test_search_bad_resource_type(store: FHIRStore):
 # BASIC SEARCH PARAMETERS OPERATIONS
 
 
-@pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
-)
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
 def test_search_all_of(store: FHIRStore, index_resources):
     """Check that the output type is correct
     """
@@ -64,9 +62,7 @@ def test_search_all_of(store: FHIRStore, index_resources):
     assert result.total == 3
 
 
-@pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
-)
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
 def test_search_all_of_qs(store: FHIRStore, index_resources):
     """Check that the output type is correct
     """
@@ -95,7 +91,7 @@ def test_searchparam_not_exist(store: FHIRStore):
     )
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_single(store: FHIRStore, index_resources):
     """Search on a resource using a single searchparam
     """
@@ -104,7 +100,7 @@ def test_searchparam_single(store: FHIRStore, index_resources):
     assert result.entry[0].resource.identifier[0].value == "654321"
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_multiple(store: FHIRStore, index_resources):
     """Search on a resource using multiple searchparams
     """
@@ -114,7 +110,7 @@ def test_searchparam_multiple(store: FHIRStore, index_resources):
     assert result.entry[0].resource.gender == "male"
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_and(store: FHIRStore, index_resources):
     """Search on a resource matching multiple criterias
     All parameters must be satisfied (AND operation)
@@ -126,7 +122,7 @@ def test_searchparam_and(store: FHIRStore, index_resources):
 
 
 @pytest.mark.skip()
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_and_same_list_field(store: FHIRStore, index_resources):
     """Search on a resource where an array field must contain multiple values.
     All parameters must be satisfied (AND operation)
@@ -137,9 +133,7 @@ def test_searchparam_and_same_list_field(store: FHIRStore, index_resources):
     assert "Ducky" in result.entry[0].resource.name[1].given
 
 
-@pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
-)
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
 def test_searchparam_or(store: FHIRStore, index_resources):
     """Search on an attribute that may match multiple values
     Performs an OR operation.
@@ -152,9 +146,7 @@ def test_searchparam_or(store: FHIRStore, index_resources):
     )
 
 
-@pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
-)
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
 def test_searchparam_and_or_combined(store: FHIRStore, index_resources):
     """Performs a search using simultaneous OR predicates
     This query reads `search patients which name.given is "Duck" OR "Peter"
@@ -180,7 +172,7 @@ def test_searchparam_casing(store: FHIRStore):
     )
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_complex(store: FHIRStore, index_resources):
     """A searchparam may target multiple fields of a resource
     Eg: address may match any of the string fields in the Address, including line, city, district,
@@ -201,7 +193,7 @@ def test_searchparam_standard_content(store: FHIRStore):
     pass
 
 
-@pytest.mark.resources("patient-example.json", "patient-example-2.json")
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json")
 def test_searchparam_standard_id(store: FHIRStore, index_resources):
     """The _id param searches on Resource.id
     """
@@ -210,7 +202,57 @@ def test_searchparam_standard_id(store: FHIRStore, index_resources):
     assert result.entry[0].resource.id == "pat1"
 
 
-@pytest.mark.resources("patient-example.json", "patient-example-2.json")
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json")
+def test_searchparam_standard_id_exact(store: FHIRStore, index_resources):
+    """The _id param searches on Resource.id
+    """
+    result = store.search("Patient", query_string="_id:exact=pat1")
+    assert result.total == 1
+    assert result.entry[0].resource.id == "pat1"
+
+
+@pytest.mark.resources(
+    "patient-pat1.json",
+    "patient-pat2.json",
+    "patient-b966.json",
+    "patient-75414a6f-ffee-4a32-b966-85cc12081603.json",
+)
+def test_searchparam_standard_id_tokenization(store: FHIRStore, index_resources):
+    """The _id param searches on Resource.id
+    If the ES tokenizer is not customized to handle IDs containing separators (eg: "-"), IDs will be
+    broken down in multiple tokens and results in erroneous search results.
+    """
+    result = store.search("Patient", query_string="_id=75414a6f-ffee-4a32-b966-85cc12081603")
+    assert result.total == 1
+    assert result.entry[0].resource.id == "75414a6f-ffee-4a32-b966-85cc12081603"
+
+    result = store.search("Patient", query_string="_id=b966")
+    assert result.total == 1
+    assert result.entry[0].resource.id == "b966"
+
+
+@pytest.mark.resources(
+    "patient-pat1.json",
+    "patient-pat2.json",
+    "patient-b966.json",
+    "patient-75414a6f-ffee-4a32-b966-85cc12081603.json",
+)
+def test_searchparam_phone_tokenized(store: FHIRStore, index_resources):
+    """The _id param searches on Resource.id
+    If the ES tokenizer is not customized to handle strings containing separators (eg: " "),
+    strings will be broken down in multiple tokens and results in erroneous search results.
+    """
+    result = store.search("Patient", query_string="phone=03 77 73 32 56")
+    assert result.total == 1
+
+    result = store.search("Patient", query_string="phone=03")
+    assert result.total == 0
+
+    result = store.search("Patient", query_string="phone=03 77 73 32 56,09 28 63 57 41")
+    assert result.total == 2
+
+
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json")
 def test_searchparam_standard_lastUpdated(store: FHIRStore, index_resources):
     """The _lastUpdated param searches on Resource.meta.lastUpdated
     """
@@ -227,7 +269,7 @@ def test_searchparam_standard_lastUpdated(store: FHIRStore, index_resources):
     assert str(result.entry[0].resource.meta.lastUpdated) < instant
 
 
-@pytest.mark.resources("patient-example.json", "patient-example-with-extensions.json")
+@pytest.mark.resources("patient-pat1.json", "patient-b966.json")
 def test_searchparam_standard_profile(store: FHIRStore, index_resources):
     """The _profile param searches on Resource.meta.profile
     """
@@ -256,7 +298,7 @@ def test_searchparam_standard_security(store: FHIRStore):
     pass
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_standard_tag(store: FHIRStore, index_resources):
     """The _tag param searches on Resource.meta.tag
     """
@@ -281,7 +323,7 @@ def test_searchparam_standard_tag(store: FHIRStore, index_resources):
 
 # fhirpath does not index Resource.text.div (Narrative) yet
 @pytest.mark.skip()
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_standard_text(store: FHIRStore, index_resources):
     """The _text param performs text search against the narrative of the resource
     """
@@ -307,7 +349,7 @@ def test_searchparam_standard_filter(store: FHIRStore):
 # Each search parameter is defined by a type that specifies how the search parameter behaves
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_type_string(store: FHIRStore, index_resources):
     """Handle string search parameters
     Search is case-insensitive and accent-insensitive. May match just the start of a string.
@@ -341,7 +383,7 @@ def test_searchparam_type_special(store: FHIRStore):
     pass
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_type_token_identifier(store: FHIRStore, index_resources):
     """Handle token search parameters
     Search parameter on a coded element or identifier. May be used to search through the text,
@@ -436,7 +478,7 @@ def test_searchparam_type_token_code(store: FHIRStore, index_resources):
     assert_empty_bundle(result)
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_type_date_date(store: FHIRStore, index_resources):
     """Handle date search parameters on FHIR data type "date"
     The date format is the standard XML format, though other formats may be supported
@@ -472,7 +514,7 @@ def test_searchparam_type_date_date(store: FHIRStore, index_resources):
     assert_empty_bundle(result)
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_type_date_datetime(store: FHIRStore, index_resources):
     """Handle date search parameters on FHIR data type "datetime"
     The date format is the standard XML format, though other formats may be supported
@@ -878,7 +920,7 @@ def test_searchparam_type_uri_above(store: FHIRStore, index_resources):
 # The modifiers are separated from the parameter name by a colon.
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_modifier_missing(store: FHIRStore, index_resources):
     """Handle :missing modifier
     For all parameters.
@@ -898,7 +940,7 @@ def test_searchparam_modifier_missing(store: FHIRStore, index_resources):
     assert_empty_bundle(result)
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_modifier_exact(store: FHIRStore, index_resources):
     """Handle :exact modifier
     For string: :exact returns results that match the entire supplied parameter,
@@ -917,7 +959,7 @@ def test_searchparam_modifier_exact(store: FHIRStore, index_resources):
     assert_empty_bundle(result)
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_modifier_contains(store: FHIRStore, index_resources):
     """Handle :contains modifier
     For string: case insensitive and combining character-insensitive,
@@ -1010,7 +1052,7 @@ def test_searchparam_modifier_above(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+    "patient-pat1.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
 )
 def test_searchparam_prefix_eq(store: FHIRStore, index_resources):
     """Handle :eq prefix
@@ -1039,7 +1081,7 @@ def test_searchparam_prefix_eq(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+    "patient-pat1.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
 )
 def test_searchparam_prefix_ne(store: FHIRStore, index_resources):
     """Handle :ne prefix
@@ -1068,7 +1110,7 @@ def test_searchparam_prefix_ne(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+    "patient-pat1.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
 )
 def test_searchparam_prefix_gt(store: FHIRStore, index_resources):
     """Handle :gt prefix
@@ -1106,7 +1148,7 @@ def test_searchparam_prefix_gt(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+    "patient-pat1.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
 )
 def test_searchparam_prefix_lt(store: FHIRStore, index_resources):
     """Handle :lt prefix
@@ -1144,7 +1186,7 @@ def test_searchparam_prefix_lt(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+    "patient-pat1.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
 )
 def test_searchparam_prefix_ge(store: FHIRStore, index_resources):
     """Handle :ge prefix
@@ -1179,7 +1221,7 @@ def test_searchparam_prefix_ge(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
+    "patient-pat1.json", "sequence-graphic-example-1.json", "observation-bodyheight-example.json"
 )
 def test_searchparam_prefix_le(store: FHIRStore, index_resources):
     """Handle :le prefix
@@ -1250,7 +1292,7 @@ def test_searchparam_prefix_ap(store: FHIRStore):
 
 
 @pytest.mark.skip()
-@pytest.mark.resources("patient-example.json", "observation-bodyheight-example.json")
+@pytest.mark.resources("patient-pat1.json", "observation-bodyheight-example.json")
 def test_searchparam_chained_simple(store: FHIRStore, index_resources):
     """Handle a single chained parameter
     DiagnosticReport?subject.name=peter
@@ -1282,7 +1324,7 @@ def test_searchparam_chained_typed(store: FHIRStore):
 
 
 @pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "observation-bodyheight-example.json"
+    "patient-pat1.json", "patient-pat2.json", "observation-bodyheight-example.json"
 )
 def test_searchparam_reverse_chaining(store: FHIRStore, index_resources):
     """Handle a single chained parameter
@@ -1331,7 +1373,7 @@ def test_searchparam_list(store: FHIRStore):
 # search parameters shared across the entire set of specified resources may be used
 
 
-@pytest.mark.resources("patient-example.json", "practitioner-example.json")
+@pytest.mark.resources("patient-pat1.json", "practitioner-example.json")
 def test_searchparam_no_type_provided(store: FHIRStore, index_resources):
     """Handle searching on multiple resource types
     GET [base]?params...
@@ -1356,7 +1398,7 @@ def test_searchparam_no_type_provided_bad_param(store: FHIRStore):
     )
 
 
-@pytest.mark.resources("patient-example.json", "practitioner-example.json")
+@pytest.mark.resources("patient-pat1.json", "practitioner-example.json")
 def test_searchparam_mutltiple_types(store: FHIRStore, index_resources):
     """Handle searching on multiple resource types while restraining the returned resources
     GET [base]?_type=Observation,Condition&other params...
@@ -1389,9 +1431,7 @@ def test_searchparam_mutltiple_types_bad_param(store: FHIRStore):
 # can contain a comma-separated list of sort rules in priority order.
 
 
-@pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
-)
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
 def test_searchparam_sort(store: FHIRStore, index_resources):
     """Handle searching on multiple resource types while restraining the returned resources
     Observation?_sort=status,-date,category
@@ -1415,7 +1455,7 @@ def test_searchparam_sort(store: FHIRStore, index_resources):
     # several fields
     result = store.search("Patient", query_string="_sort=address-city,-family")
     result_ids = [entry.resource.id for entry in result.entry]
-    assert result_ids == ["example", "pat2", "pat1"]
+    assert result_ids == ["b966", "pat2", "pat1"]
 
 
 # PAGE COUNT
@@ -1424,9 +1464,7 @@ def test_searchparam_sort(store: FHIRStore, index_resources):
 # If _count has the value 0, this shall be treated the same as _summary=count.
 
 
-@pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
-)
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
 def test_searchparam_count(store: FHIRStore, index_resources):
     """Handle _count
     Observation?_count=10
@@ -1438,9 +1476,7 @@ def test_searchparam_count(store: FHIRStore, index_resources):
     assert len(result.entry) == 2
 
 
-@pytest.mark.resources(
-    "patient-example.json", "patient-example-2.json", "patient-example-with-extensions.json"
-)
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
 def test_searchparam_count_zero(store: FHIRStore, index_resources):
     """Handle _count
     Observation?_count=0
@@ -1470,8 +1506,8 @@ def test_searchparam_count_zero(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json",
-    "patient-example-2.json",
+    "patient-pat1.json",
+    "patient-pat2.json",
     "observation-bodyheight-example.json",
     "observation-glucose.json",
 )
@@ -1492,8 +1528,8 @@ def test_searchparam_include(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json",
-    "patient-example-2.json",
+    "patient-pat1.json",
+    "patient-pat2.json",
     "observation-bodyheight-example.json",
     "observation-glucose.json",
     "observation-vp-oyster.json",
@@ -1523,8 +1559,8 @@ def test_searchparam_include_untyped(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json",
-    "patient-example-2.json",
+    "patient-pat1.json",
+    "patient-pat2.json",
     "observation-bodyheight-example.json",
     "observation-glucose.json",
     "observation-vp-oyster.json",
@@ -1558,34 +1594,29 @@ def test_searchparam_include_many_types(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json",
-    "location-patient-home.json",
     "observation-bodyheight-example.json",
-    "observation-vp-oyster.json",
+    "patient-pat1.json",
+    "location-patient-home.json",
     "practitioner-example.json",
 )
 def test_searchparam_include_many_references(store: FHIRStore, index_resources):
     """Handle _include multiple references"""
     result = store.search(
-        "Observation", query_string="_include=Observation:subject&_include=Observation:performer",
+        "Observation",
+        query_string="_id=body-height&_include=Observation:subject&_include=Observation:performer",
     )
 
     # both the observation and the patient should have been returned
-    assert len(result.entry) == 5
+    assert len(result.entry) == 3
 
     assert result.entry[0].resource.resource_type == "Observation"
     assert result.entry[0].search.mode == "match"
-    assert result.entry[1].resource.resource_type == "Observation"
-    assert result.entry[1].search.mode == "match"
 
-    assert result.entry[2].resource.resource_type == "Patient"
+    assert result.entry[1].resource.resource_type == "Patient"
+    assert result.entry[1].search.mode == "include"
+
+    assert result.entry[2].resource.resource_type == "Practitioner"
     assert result.entry[2].search.mode == "include"
-
-    assert result.entry[3].resource.resource_type == "Location"
-    assert result.entry[3].search.mode == "include"
-
-    assert result.entry[4].resource.resource_type == "Practitioner"
-    assert result.entry[4].search.mode == "include"
 
 
 @pytest.mark.resources("observation-bodyheight-example.json")
@@ -1644,8 +1675,8 @@ def test_searchparam_include_bad_target(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json",
-    "patient-example-2.json",
+    "patient-pat1.json",
+    "patient-pat2.json",
     "observation-bodyheight-example.json",
     "observation-glucose.json",
 )
@@ -1667,8 +1698,8 @@ def test_searchparam_revinclude(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json",
-    "patient-example-2.json",
+    "patient-pat1.json",
+    "patient-pat2.json",
     "observation-bodyheight-example.json",
     "observation-glucose.json",
 )
@@ -1692,8 +1723,8 @@ def test_searchparam_revinclude_typed(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json",
-    "patient-example-2.json",
+    "patient-pat1.json",
+    "patient-pat2.json",
     "observation-bodyheight-example.json",
     "observation-glucose.json",
 )
@@ -1718,8 +1749,8 @@ def test_searchparam_revinclude_with_has(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
-    "patient-example.json",
-    "patient-example-2.json",
+    "patient-pat1.json",
+    "patient-pat2.json",
     "observation-bodyheight-example.json",
     "observation-glucose.json",
     "medicationrequest-example.json",
@@ -1806,7 +1837,7 @@ def test_searchparam_revinclude_bad_target(store: FHIRStore, index_resources):
 # SUMMARY
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_summary_true(store: FHIRStore, index_resources):
     """Handle _summary=true
     Return a limited subset of elements from the resource. This subset SHOULD consist solely of all
@@ -1820,7 +1851,7 @@ def test_searchparam_summary_true(store: FHIRStore, index_resources):
     assert result.entry[0].resource.maritalStatus is None  # maritalStatus should not be in summary
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_summary_false(store: FHIRStore, index_resources):
     """Handle _summary=false
     Return all parts of the resource(s)
@@ -1833,7 +1864,7 @@ def test_searchparam_summary_false(store: FHIRStore, index_resources):
     assert result.entry[0].resource.birthDate is not None
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_summary_text(store: FHIRStore, index_resources):
     """Handle _summary=text
     Return only the "text" element, the 'id' element, the 'meta' element, and only top-level
@@ -1848,7 +1879,7 @@ def test_searchparam_summary_text(store: FHIRStore, index_resources):
     assert result.entry[0].resource.birthDate is None  # birthDate is not mandatory
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_summary_data(store: FHIRStore, index_resources):
     """Handle _summary=data
     Remove the text element
@@ -1861,7 +1892,7 @@ def test_searchparam_summary_data(store: FHIRStore, index_resources):
     assert result.entry[0].resource.birthDate is not None
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_summary_count(store: FHIRStore, index_resources):
     """Handle _summary=count
     Search only: just return a count of the matching resources, without returning the actual matches
@@ -1879,7 +1910,7 @@ def test_searchparam_summary_count(store: FHIRStore, index_resources):
 # elements in a resource as part of the list of elements.
 
 
-@pytest.mark.resources("patient-example.json")
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_elements(store: FHIRStore, index_resources):
     """Handle _elements
     Patient?_elements=identifier,active,link
