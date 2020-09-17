@@ -99,7 +99,7 @@ class TestFHIRStore:
     def test_create_resource_with_extension(self, store: FHIRStore, mongo_client: MongoClient):
         """resources using extensions are not
         handled yet, an error should be raised"""
-        with open("test/fixtures/patient-example-with-extensions.json") as f:
+        with open("test/fixtures/patient-b966.json") as f:
             patient_with_ext = json.load(f)
             result = store.create(patient_with_ext)
             assert isinstance(result, Patient)
