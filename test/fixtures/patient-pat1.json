@@ -18,7 +18,16 @@
       },
       "system": "urn:oid:0.1.2.3.4.5.6.7",
       "value": "654321"
-    }
+    },
+    { "value": "eq654321", "use": "test-prefix-token" },
+    { "value": "ge654321", "use": "test-prefix-token" },
+    { "value": "gt654321", "use": "test-prefix-token" },
+    { "value": "le654321", "use": "test-prefix-token" },
+    { "value": "lt654321", "use": "test-prefix-token" },
+    { "value": "ne654321", "use": "test-prefix-token" },
+    { "value": "sa654321", "use": "test-prefix-token" },
+    { "value": "eb654321", "use": "test-prefix-token" },
+    { "value": "ap654321", "use": "test-prefix-token" }
   ],
   "active": true,
   "birthDate": "1995-12-25",
@@ -44,6 +53,20 @@
     {
       "use": "nickname",
       "given": ["Ducky"]
+    },
+    {
+      "use": "nickname-prefixes",
+      "given": [
+        "leslie",
+        "gerard",
+        "ltamine",
+        "gtlabas",
+        "equarte",
+        "nerval",
+        "samuel",
+        "ebadidonc",
+        "apiculteur"
+      ]
     }
   ],
   "gender": "male",
