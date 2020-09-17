@@ -51,7 +51,7 @@ def es_client():
 
 @pytest.fixture(scope="function")
 def test_patient(mongo_client):
-    with open("test/fixtures/patient-example.json") as f:
+    with open("test/fixtures/patient-pat1.json") as f:
         patient = json.load(f)
         yield patient
 
