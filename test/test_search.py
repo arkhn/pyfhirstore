@@ -374,6 +374,27 @@ def test_searchparam_type_string(store: FHIRStore, index_resources):
     result = store.search("Patient", query_string="address=Basse normandie")
     assert result.total == 1
 
+    # prefix are not taken into account when dealing with strings
+    # (le, ge, lt, gt, eq, ne, sa,  eb, ap)
+    result = store.search("Patient", query_string="name=leslie")
+    assert result.total == 1
+    result = store.search("Patient", query_string="name=gerard")
+    assert result.total == 1
+    result = store.search("Patient", query_string="name=ltamine")
+    assert result.total == 1
+    result = store.search("Patient", query_string="name=gtlabas")
+    assert result.total == 1
+    result = store.search("Patient", query_string="name=equarte")
+    assert result.total == 1
+    result = store.search("Patient", query_string="name=nerval")
+    assert result.total == 1
+    result = store.search("Patient", query_string="name=samuel")
+    assert result.total == 1
+    result = store.search("Patient", query_string="name=ebadidonc")
+    assert result.total == 1
+    result = store.search("Patient", query_string="name=apiculteur")
+    assert result.total == 1
+
 
 # TODO: special search parameters are not yet implemented
 @pytest.mark.skip()
@@ -425,6 +446,27 @@ def test_searchparam_type_token_identifier(store: FHIRStore, index_resources):
 
     result = store.search("Patient", query_string="identifier=other|")
     assert_empty_bundle(result)
+
+    # prefix are not taken into account when dealing with tokens
+    # (le, ge, lt, gt, eq, ne, sa,  eb, ap)
+    result = store.search("Patient", query_string="identifier=eq654321")
+    assert result.total == 1
+    result = store.search("Patient", query_string="identifier=ge654321")
+    assert result.total == 1
+    result = store.search("Patient", query_string="identifier=lt654321")
+    assert result.total == 1
+    result = store.search("Patient", query_string="identifier=gt654321")
+    assert result.total == 1
+    result = store.search("Patient", query_string="identifier=le654321")
+    assert result.total == 1
+    result = store.search("Patient", query_string="identifier=ne654321")
+    assert result.total == 1
+    result = store.search("Patient", query_string="identifier=sa654321")
+    assert result.total == 1
+    result = store.search("Patient", query_string="identifier=eb654321")
+    assert result.total == 1
+    result = store.search("Patient", query_string="identifier=ap654321")
+    assert result.total == 1
 
 
 @pytest.mark.resources("observation-bodyheight-example.json")
