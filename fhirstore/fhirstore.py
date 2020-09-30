@@ -42,7 +42,7 @@ class FHIRStore:
         self.resources = self.db.list_collection_names()
 
         if self.es and len(self.es.transport.hosts) > 0:
-            self.search_engine = ElasticSearchEngine(self.es, FHIR_VERSION.R4)
+            self.search_engine = ElasticSearchEngine(FHIR_VERSION.R4, self.es, db_name)
         else:
             logging.warning("No elasticsearch client provided, search features are disabled")
 
@@ -63,7 +63,12 @@ class FHIRStore:
             self.resources = []
 
         if es:
-            self.es.indices.delete("_all")
+            try:
+                self.es.indices.delete(self.search_engine.get_index_name())
+            except ESNotFoundError:
+                logging.warning(
+                    f"index {self.search_engine.get_index_name()} does not exist, skipping..."
+                )
 
     def bootstrap(self, resource: Optional[str] = None, show_progress: Optional[bool] = True):
         """
@@ -298,8 +303,8 @@ class FHIRStore:
         )
 
     def search(
-        self, resource_type=None, query_string=None, params=None
-    ) -> Union[Bundle, OperationOutcome]:
+        self, resource_type=None, query_string=None, params=None, as_json=False
+    ) -> Union[Bundle, dict, OperationOutcome]:
         """
         Searchs for params inside a resource.
         Returns a bundle of items, as required by FHIR standards.
@@ -324,7 +329,7 @@ class FHIRStore:
         search_context = SearchContext(self.search_engine, resource_type)
         fhir_search = Search(search_context, query_string=query_string, params=params)
         try:
-            return fhir_search()
+            return fhir_search(as_json=as_json)
         except ESNotFoundError as e:
             return NotFoundError(
                 f"{e.info['error']['index']} is not indexed in the database yet."
@@ -358,7 +363,7 @@ class FHIRStore:
                 res = self.create(entry["resource"])
                 if isinstance(res, OperationOutcome):
                     logging.error(
-                        f"could not upload resource {entry['resource']['resourceType']}"
+                        f"could not upload resource {entry['resource']['resourceType']} "
                         f"with id {entry['resource']['id']}: {[i.diagnostics for i in res.issue]}"
                     )
 

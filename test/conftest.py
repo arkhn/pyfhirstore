@@ -8,7 +8,7 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 from fhirstore import FHIRStore
 
-DB_NAME = "fhirstore_test"
+DB_NAME = "fhirstore"
 MONGO_USERNAME = os.getenv("MONGO_USERNAME")
 MONGO_PASSWORD = os.getenv("MONGO_PASSWORD")
 ES_URL = os.getenv("ES_URL")

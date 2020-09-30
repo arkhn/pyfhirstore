@@ -1,21 +1,58 @@
-from os import getenv
+import os
+import json
+import logging
 from yarl import URL
+
+from fhirstore.errors import SearchEngineError
 
 from fhirpath.connectors.factory.es import ElasticsearchConnection
 from fhirpath.engine.es import ElasticsearchEngine as BaseEngine
-from fhirpath.engine import dialect_factory
-from fhirpath.enums import FHIR_VERSION
-from fhirpath_helpers.elasticsearch.mapping import generate_mappings
+from fhirpath.engine import dialect_factory, EngineResultRow
 
-FHIR_API_URL = getenv("FHIR_API_URL", "https://arkhn.com")
+FHIR_API_URL = os.getenv("FHIR_API_URL", "https://arkhn.com")
+ELASTIC_MAPPING_FILES_DIR = os.getenv("ELASTIC_MAPPING_FILES_DIR")
 
 
 class ElasticSearchEngine(BaseEngine):
-    def __init__(self, es_client, fhir_release=FHIR_VERSION.R4):
+
+    es_reference_analyzer = "fhir_reference_analyzer"
+    es_token_normalizer = "fhir_normalizer"
+
+    def __init__(self, fhir_release, es_client, es_index):
         super().__init__(
             fhir_release, lambda x: ElasticsearchConnection(es_client), dialect_factory
         )
-        self.mappings = generate_mappings(FHIR_VERSION.R4.name)
+        self.es_index = es_index
+        self.mappings = {}
+
+        # load the ES mappings from static files
+        if ELASTIC_MAPPING_FILES_DIR:
+            logging.info(f"Loading ES index from {ELASTIC_MAPPING_FILES_DIR}...")
+            try:
+                mapping_files = os.listdir(ELASTIC_MAPPING_FILES_DIR)
+                for filename in mapping_files:
+                    with open(os.path.join(ELASTIC_MAPPING_FILES_DIR, filename), "r") as f:
+                        try:
+                            es_mapping = json.load(f)
+                            resource_type = es_mapping.get("resourceType")
+                            self.mappings[resource_type] = es_mapping.get("mapping")
+                        except Exception as err:
+                            raise SearchEngineError(f"{filename} is not a valid JSON file: {err}")
+
+            except FileNotFoundError as e:
+                raise SearchEngineError(f"Could not find ES mapping file: {e}")
+            except IsADirectoryError:
+                raise SearchEngineError(f"ELASTIC_MAPPING_FILES_DIR should contain only JSON files")
+
+        # load the ES mappings dynamically
+        else:
+            logging.info(
+                "ELASTIC_MAPPING_FILES_DIR should be defined in environment, "
+                "generating mappings dynamically"
+            )
+            self.mappings = self.generate_mappings(
+                self.es_reference_analyzer, self.es_token_normalizer
+            )
 
     def calculate_field_index_name(self, resource_type):
         return resource_type
@@ -28,12 +65,12 @@ class ElasticSearchEngine(BaseEngine):
 
     def get_index_name(self):
         """ """
-        return "fhirstore"
+        return self.es_index
 
     def get_mapping(self, resource_type: str, index_config=None):
         """ """
         try:
-            return {"properties": self.mappings[resource_type]}
+            return self.mappings[resource_type]
         except KeyError as e:
             raise Exception(f"resource_type {e} does not exist in elasticsearch mappings")
 
@@ -43,17 +80,20 @@ class ElasticSearchEngine(BaseEngine):
                 "index.mapping.total_fields.limit": 100000,
                 "index.mapping.nested_fields.limit": 10000,
                 "analysis": {
-                    "normalizer": {"fhir_normalizer": {"filter": ["lowercase", "asciifolding"]}},
-                    "analyzer": {
-                        "path_analyzer": {"tokenizer": "path_tokenizer"},
-                        "fhir_reference_analyzer": {"tokenizer": "fhir_reference_tokenizer"},
+                    "normalizer": {
+                        self.es_token_normalizer: {"filter": ["lowercase", "asciifolding"]}
                     },
-                    "tokenizer": {
-                        "path_tokenizer": {"delimiter": "/", "type": "path_hierarchy"},
-                        "fhir_reference_tokenizer": {
-                            "type": "pattern",
-                            "pattern": "(?:\w+\/)?(https?\:\/\/.*|\w+)",
-                            "group": 1,
+                    "analyzer": {
+                        self.es_reference_analyzer: {
+                            "tokenizer": "keyword",
+                            "filter": ["fhir_reference_filter"],
+                        },
+                    },
+                    "filter": {
+                        "fhir_reference_filter": {
+                            "type": "pattern_capture",
+                            "preserve_original": True,
+                            "patterns": [r"(?:\w+\/)?(https?\:\/\/.*|[a-zA-Z0-9_-]+)"],
                         },
                     },
                 },
@@ -83,3 +123,20 @@ class ElasticSearchEngine(BaseEngine):
             self.connection._conn.indices.create(self.get_index_name(), body=body)
 
         self.connection._conn.indices.refresh(index=self.get_index_name())
+
+    def extract_hits(self, source_filters, hits, container, doc_type="_doc"):
+        """ """
+        for res in hits:
+            if res["_type"] != doc_type:
+                continue
+            row = EngineResultRow()
+
+            # the res["_source"] object contains the resource data indexed by resource type.
+            # eg: {"Patient": {patient_data...}}
+            # this object should always have a single key:value pair since the term queries
+            # performed by ES are always scoped by resource_type.
+            # In short, row is an array with a single item.
+            for field_index_name, resource_data in res["_source"].items():
+                row.append({**resource_data, "resourceType": field_index_name})
+
+            container.add(row)
