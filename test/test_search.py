@@ -1941,9 +1941,8 @@ def test_searchparam_revinclude_bad_target(store: FHIRStore, index_resources):
     assert isinstance(result, OperationOutcome)
     assert len(result.issue) == 1
     assert (
-        result.issue[0].diagnostics
-        == "the search param Observation.subject may refer to Group, Device, Patient, Location"
-        ", not to DocumentReference"
+        result.issue[0].diagnostics == "invalid reference Observation.subject "
+        "(Group,Device,Patient,Location) in the current search context (Observation)"
     )
 
 
@@ -2036,18 +2035,3 @@ def test_searchparam_elements(store: FHIRStore, index_resources):
     assert result.entry[0].resource.meta is None
     assert result.entry[0].resource.birthDate is None
     assert result.entry[0].resource.maritalStatus is None
-
-
-@pytest.mark.resources("observation-bodyheight-example.json")
-def test_searchparam_element_missing_required(store: FHIRStore, index_resources):
-    """Handle _elements
-    Clients must select all required attributes otherwise an error is returned.
-    """
-    result = store.search("Observation", query_string="_elements=identifier")
-
-    assert isinstance(result, OperationOutcome)
-    assert len(result.issue) == 2
-    assert result.issue[0].severity == "error"
-    assert result.issue[0].diagnostics == "field required: Bundle.entry.0.resource.code"
-    assert result.issue[1].severity == "error"
-    assert result.issue[1].diagnostics == "field required: Bundle.entry.0.resource.status"

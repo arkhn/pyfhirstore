@@ -123,7 +123,7 @@ class ElasticSearchEngine(BaseEngine):
         else:
             self.connection._conn.indices.create(self.get_index_name(), body=body)
 
-        self.connection._conn.indices.refresh(index=self.get_index_name())
+        self.connection._conn.indices.refresh(index=self.get_index_name(), ignore_unavailable=True)
 
     def extract_hits(self, source_filters, hits, container, doc_type="_doc"):
         """ """
