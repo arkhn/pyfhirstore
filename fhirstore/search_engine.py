@@ -1,3 +1,4 @@
+from glob import glob
 import os
 import json
 import logging
@@ -29,9 +30,9 @@ class ElasticSearchEngine(BaseEngine):
         if ELASTIC_MAPPING_FILES_DIR:
             logging.info(f"Loading ES index from {ELASTIC_MAPPING_FILES_DIR}...")
             try:
-                mapping_files = os.listdir(ELASTIC_MAPPING_FILES_DIR)
+                mapping_files = glob(f"{ELASTIC_MAPPING_FILES_DIR}/**.json")
                 for filename in mapping_files:
-                    with open(os.path.join(ELASTIC_MAPPING_FILES_DIR, filename), "r") as f:
+                    with open(filename, "r") as f:
                         try:
                             es_mapping = json.load(f)
                             resource_type = es_mapping.get("resourceType")
@@ -47,7 +48,7 @@ class ElasticSearchEngine(BaseEngine):
         # load the ES mappings dynamically
         else:
             logging.info(
-                "ELASTIC_MAPPING_FILES_DIR should be defined in environment, "
+                "ELASTIC_MAPPING_FILES_DIR was not found in environment, "
                 "generating mappings dynamically"
             )
             self.mappings = self.generate_mappings(

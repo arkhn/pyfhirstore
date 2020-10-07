@@ -101,6 +101,14 @@ def test_searchparam_not_exist(store: FHIRStore):
 
 
 @pytest.mark.resources("patient-pat1.json")
+def test_search_empty(store: FHIRStore, index_resources):
+    """En empty search parameter should be ignored
+    """
+    result = store.search("Patient", query_string="_id=")
+    assert result.total == 1
+
+
+@pytest.mark.resources("patient-pat1.json")
 def test_searchparam_single(store: FHIRStore, index_resources):
     """Search on a resource using a single searchparam
     """
