@@ -34,9 +34,7 @@ from fhirstore.search_engine import ElasticSearchEngine
 
 
 class FHIRStore:
-    def __init__(
-        self, mongo_client: MongoClient, es_client: Elasticsearch, db_name: str,
-    ):
+    def __init__(self, mongo_client: MongoClient, es_client: Elasticsearch, db_name: str):
         self.es = es_client
         self.db = mongo_client[db_name]
         self.resources = self.db.list_collection_names()
@@ -81,7 +79,7 @@ class FHIRStore:
         resources = [r for r in self.resources if r not in existing_resources]
         if show_progress:
             tqdm.write("\n", end="")
-            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...",)
+            resources = tqdm(resources, file=sys.stdout, desc="Bootstrapping collections...")
         for resource_type in resources:
             self.db.create_collection(resource_type)
             # Add unique constraint on id
@@ -91,11 +89,24 @@ class FHIRStore:
                 [
                     ("identifier.system", ASCENDING),
                     ("identifier.value", ASCENDING),
-                    ("identifier.type.coding.system", ASCENDING),
-                    ("identifier.type.coding.code", ASCENDING),
                 ],
                 unique=True,
-                partialFilterExpression={"identifier": {"$exists": True}},
+                partialFilterExpression={
+                    "identifier.system": {"$exists": True},
+                    "identifier.value": {"$exists": True},
+                },
+            )
+            self.db[resource_type].create_index(
+                [
+                    ("identifier.type.coding.system", ASCENDING),
+                    ("identifier.type.coding.code", ASCENDING),
+                    ("identifier.value", ASCENDING),
+                ],
+                unique=True,
+                partialFilterExpression={
+                    "identifier.type": {"$exists": True},
+                    "identifier.value": {"$exists": True},
+                },
             )
 
     def normalize_resource(self, resource: Union[Dict, FHIRAbstractModel]) -> FHIRAbstractModel:
@@ -183,7 +194,7 @@ class FHIRStore:
             return e.format()
 
         update_result = self.db[resource.resource_type].replace_one(
-            {"id": instance_id}, json.loads(resource.json()),
+            {"id": instance_id}, json.loads(resource.json())
         )
         if update_result.matched_count == 0:
             return NotFoundError(
