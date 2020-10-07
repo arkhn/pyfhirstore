@@ -87,25 +87,25 @@ class FHIRStore:
             # Add unique constraint on (identifier.system, identifier.value)
             self.db[resource_type].create_index(
                 [
-                    ("identifier.system", ASCENDING),
                     ("identifier.value", ASCENDING),
+                    ("identifier.system", ASCENDING),
                 ],
                 unique=True,
                 partialFilterExpression={
-                    "identifier.system": {"$exists": True},
                     "identifier.value": {"$exists": True},
+                    "identifier.system": {"$exists": True},
                 },
             )
             self.db[resource_type].create_index(
                 [
+                    ("identifier.value", ASCENDING),
                     ("identifier.type.coding.system", ASCENDING),
                     ("identifier.type.coding.code", ASCENDING),
-                    ("identifier.value", ASCENDING),
                 ],
                 unique=True,
                 partialFilterExpression={
-                    "identifier.type": {"$exists": True},
                     "identifier.value": {"$exists": True},
+                    "identifier.type": {"$exists": True},
                 },
             )
 
