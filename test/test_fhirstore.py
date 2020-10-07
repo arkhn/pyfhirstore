@@ -2,6 +2,8 @@ import json
 import pytest
 from unittest.mock import patch
 
+import time
+
 from pymongo import MongoClient
 
 from fhir.resources.operationoutcome import OperationOutcome
@@ -16,6 +18,7 @@ def reset_store(store):
     store.reset()
     store.bootstrap(resource="Patient", show_progress=False)
     store.bootstrap(resource="MedicationRequest", show_progress=False)
+    time.sleep(1)
 
 
 # For now, this class assumes an already existing store exists
