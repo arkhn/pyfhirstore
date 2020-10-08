@@ -2,6 +2,8 @@ import json
 import pytest
 from unittest.mock import patch
 
+import time
+
 from pymongo import MongoClient
 
 from fhir.resources.operationoutcome import OperationOutcome
@@ -14,8 +16,8 @@ from fhirstore.errors import FHIRStoreError
 @pytest.fixture(autouse=True)
 def reset_store(store):
     store.reset()
+    time.sleep(1)
     store.bootstrap(resource="Patient", show_progress=False)
-    store.bootstrap(resource="MedicationRequest", show_progress=False)
 
 
 # For now, this class assumes an already existing store exists

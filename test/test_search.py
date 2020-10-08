@@ -63,6 +63,15 @@ def test_search_all_of(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
+def test_search_as_json(store: FHIRStore, index_resources):
+    """Check that the output type is correct
+    """
+    result = store.search("Patient", params={}, as_json=True)
+    assert isinstance(result, dict)
+    assert result["total"] == 3
+
+
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
 def test_search_all_of_qs(store: FHIRStore, index_resources):
     """Check that the output type is correct
     """
@@ -89,6 +98,14 @@ def test_searchparam_not_exist(store: FHIRStore):
         result.issue[0].diagnostics == "No search definition is available for search parameter "
         "``kouakou`` on Resource ``Patient``."
     )
+
+
+@pytest.mark.resources("patient-pat1.json")
+def test_search_empty(store: FHIRStore, index_resources):
+    """En empty search parameter should be ignored
+    """
+    result = store.search("Patient", query_string="_id=")
+    assert result.total == 1
 
 
 @pytest.mark.resources("patient-pat1.json")
@@ -796,6 +813,9 @@ def test_searchparam_type_reference_literal(store: FHIRStore, index_resources):
     result = store.search("Observation", query_string="subject=Patient/pat1")
     assert result.total == 1
 
+    result = store.search("Observation", query_string="subject=Location/pat1")
+    assert_empty_bundle(result)
+
     result = store.search("Observation", query_string="subject=Patient/patUnknown")
     assert_empty_bundle(result)
 
@@ -1384,6 +1404,27 @@ def test_searchparam_reverse_chaining(store: FHIRStore, index_resources):
     assert len(result.entry) == 0
 
 
+@pytest.mark.resources(
+    "patient-pat1.json",
+    "patient-pat2.json",
+    "location-patient-home.json",
+    "observation-bodyheight-example.json",
+    "observation-vp-oyster.json",
+)
+def test_searchparam_reverse_chaining_where_constraint(store: FHIRStore, index_resources):
+    """Handle search params expressions with fhirpath .where(resolve() is <resource_type>)
+    Patient?_has:Observation:patient:code=8302-2
+    """
+
+    # the following observation's subject is a Patient, therefore it should have one result
+    result = store.search("Patient", query_string="_has:Observation:patient:code=8302-2")
+    assert len(result.entry) == 1
+
+    # the following observation's subject is a Location, therefore result should be emtpy
+    result = store.search("Patient", query_string="_has:Observation:patient:code=41857-4")
+    assert_empty_bundle(result)
+
+
 @pytest.mark.skip()
 def test_searchparam_reverse_chaining_chained(store: FHIRStore):
     """Handle a single chained parameter
@@ -1636,6 +1677,38 @@ def test_searchparam_include_many_types(store: FHIRStore, index_resources):
 
 
 @pytest.mark.resources(
+    "patient-pat1.json",
+    "patient-pat2.json",
+    "observation-bodyheight-example.json",
+    "observation-glucose.json",
+    "observation-vp-oyster.json",
+    "location-patient-home.json",
+)
+def test_searchparam_include_where_constraint(store: FHIRStore, index_resources):
+    """Handle search params expressions with fhirpath .where(resolve() is <resource_type>)
+    Observation?_include=Observation:patient
+    """
+
+    result = store.search("Observation", query_string="_include=Observation:patient",)
+
+    # only the patients should have been returned
+    assert len(result.entry) == 5
+
+    assert result.entry[0].resource.resource_type == "Observation"
+    assert result.entry[0].search.mode == "match"
+    assert result.entry[1].resource.resource_type == "Observation"
+    assert result.entry[1].search.mode == "match"
+    assert result.entry[2].resource.resource_type == "Observation"
+    assert result.entry[2].search.mode == "match"
+
+    assert result.entry[3].resource.resource_type == "Patient"
+    assert result.entry[3].search.mode == "include"
+
+    assert result.entry[4].resource.resource_type == "Patient"
+    assert result.entry[4].search.mode == "include"
+
+
+@pytest.mark.resources(
     "observation-bodyheight-example.json",
     "patient-pat1.json",
     "location-patient-home.json",
@@ -1724,7 +1797,7 @@ def test_searchparam_include_bad_target(store: FHIRStore, index_resources):
 )
 def test_searchparam_revinclude(store: FHIRStore, index_resources):
     """Handle _include
-    Patient?_revinclude=Provenance:target
+    Patient?_revinclude=Observation:subject
     """
 
     result = store.search("Patient", query_string="_id=pat1&_revinclude=Observation:subject",)
@@ -1746,8 +1819,7 @@ def test_searchparam_revinclude(store: FHIRStore, index_resources):
     "observation-glucose.json",
 )
 def test_searchparam_revinclude_typed(store: FHIRStore, index_resources):
-    """Handle _include
-    Patient?_revinclude=Provenance:target
+    """Handle _revinclude when typing the reference search parameter
     """
 
     result = store.search(
@@ -1771,8 +1843,7 @@ def test_searchparam_revinclude_typed(store: FHIRStore, index_resources):
     "observation-glucose.json",
 )
 def test_searchparam_revinclude_with_has(store: FHIRStore, index_resources):
-    """Handle _include
-    Patient?_revinclude=Provenance:target
+    """Handle _revinclude coupled with _has
     """
 
     result = store.search(
@@ -1870,9 +1941,8 @@ def test_searchparam_revinclude_bad_target(store: FHIRStore, index_resources):
     assert isinstance(result, OperationOutcome)
     assert len(result.issue) == 1
     assert (
-        result.issue[0].diagnostics
-        == "the search param Observation.subject may refer to Group, Device, Patient, Location"
-        ", not to DocumentReference"
+        result.issue[0].diagnostics == "invalid reference Observation.subject "
+        "(Group,Device,Patient,Location) in the current search context (Observation)"
     )
 
 
@@ -1965,18 +2035,3 @@ def test_searchparam_elements(store: FHIRStore, index_resources):
     assert result.entry[0].resource.meta is None
     assert result.entry[0].resource.birthDate is None
     assert result.entry[0].resource.maritalStatus is None
-
-
-@pytest.mark.resources("observation-bodyheight-example.json")
-def test_searchparam_element_missing_required(store: FHIRStore, index_resources):
-    """Handle _elements
-    Clients must select all required attributes otherwise an error is returned.
-    """
-    result = store.search("Observation", query_string="_elements=identifier")
-
-    assert isinstance(result, OperationOutcome)
-    assert len(result.issue) == 2
-    assert result.issue[0].severity == "error"
-    assert result.issue[0].diagnostics == "field required: Observation.code"
-    assert result.issue[1].severity == "error"
-    assert result.issue[1].diagnostics == "field required: Observation.status"

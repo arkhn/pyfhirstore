@@ -5,6 +5,5 @@ pymongo==3.9.0
 tqdm==4.36.1
 werkzeug==1.0.1
 
-fhir.resources@git+https://github.com/arkhn/fhir.resources@6.0.1#egg=fhir.resources
-fhirpath_helpers@git+https://github.com/arkhn/fhirpath_helpers@0.2.0#egg=fhirpath_helpers
-fhirpath@git+https://github.com/arkhn/fhirpath@0.8.0#egg=fhirpath
+fhir.resources>=6.0.0b4
+fhirpath@git+https://github.com/arkhn/fhirpath@sv/handle-summary-clause#egg=fhirpath

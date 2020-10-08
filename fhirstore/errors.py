@@ -80,3 +80,7 @@ class NotFoundError(FHIRStoreError):
 
     def __init__(self, error: str):
         super().__init__(error, severity="error", code="not-found")
+
+
+class SearchEngineError(Exception):
+    pass
