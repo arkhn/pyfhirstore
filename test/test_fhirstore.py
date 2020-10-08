@@ -116,10 +116,8 @@ class TestFHIRStore:
             {
                 "identifier": [
                     {"value": "val", "system": "sys"},
-                    {"value": "just_value"},
                     {
                         "value": "value",
-                        "system": "system",
                         "type": {"coding": [{"system": "type_system", "code": "type_code"}]},
                     },
                 ],
@@ -146,30 +144,22 @@ class TestFHIRStore:
         assert len(result.issue) == 1
         assert "Resource Patient pat2 already exists" in result.issue[0].diagnostics
 
-        result = store.create(
-            {"identifier": [{"value": "just_value"}], "resourceType": "Patient", "id": "pat2"}
-        )
-        assert isinstance(result, OperationOutcome)
-        assert len(result.issue) == 1
-        assert "Resource Patient pat2 already exists" in result.issue[0].diagnostics
-
+        # index on (identifier.value, identifier.system)
         result = store.create(
             {
                 "identifier": [
-                    {"value": "new_val"},
                     {
                         "value": "value",
-                        "system": "system",
                         "type": {"coding": [{"system": "type_system", "code": "type_code"}]},
-                    },
+                    }
                 ],
                 "resourceType": "Patient",
-                "id": "pat2",
+                "id": "pat3",
             }
         )
         assert isinstance(result, OperationOutcome)
         assert len(result.issue) == 1
-        assert "Resource Patient pat2 already exists" in result.issue[0].diagnostics
+        assert "Resource Patient pat3 already exists" in result.issue[0].diagnostics
 
     ###
     # FHIRStore.read()
