@@ -4,6 +4,8 @@ import json
 import logging
 from yarl import URL
 
+from elasticsearch.exceptions import NotFoundError as ESNotFoundError
+
 from fhirstore.errors import SearchEngineError
 
 from fhirpath.connectors.factory.es import ElasticsearchConnection
@@ -75,6 +77,12 @@ class ElasticSearchEngine(BaseEngine):
         except KeyError as e:
             raise Exception(f"resource_type {e} does not exist in elasticsearch mappings")
 
+    def reset(self):
+        try:
+            self.connection._conn.indices.delete(self.get_index_name())
+        except ESNotFoundError:
+            logging.warning(f"index {self.get_index_name()} does not exist, skipping...")
+
     def create_es_index(self, resource=None):
         body = {
             "settings": {
@@ -119,11 +127,14 @@ class ElasticSearchEngine(BaseEngine):
             self.connection._conn.indices.put_mapping(
                 body=body["mappings"], index=self.get_index_name()
             )
+            self.connection._conn.indices.refresh(index=self.get_index_name())
+
         # otherwise create it
         else:
             self.connection._conn.indices.create(self.get_index_name(), body=body)
-
-        self.connection._conn.indices.refresh(index=self.get_index_name(), ignore_unavailable=True)
+            self.connection._conn.indices.refresh(
+                index=self.get_index_name(), ignore_unavailable=True
+            )
 
     def extract_hits(self, source_filters, hits, container, doc_type="_doc"):
         """ """

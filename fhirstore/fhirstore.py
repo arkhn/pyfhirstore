@@ -63,12 +63,7 @@ class FHIRStore:
             self.resources = []
 
         if es:
-            try:
-                self.es.indices.delete(self.search_engine.get_index_name())
-            except ESNotFoundError:
-                logging.warning(
-                    f"index {self.search_engine.get_index_name()} does not exist, skipping..."
-                )
+            self.search_engine.reset()
 
     def bootstrap(self, resource: Optional[str] = None, show_progress: Optional[bool] = True):
         """

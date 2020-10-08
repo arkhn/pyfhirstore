@@ -16,9 +16,9 @@ from fhirstore.errors import FHIRStoreError
 @pytest.fixture(autouse=True)
 def reset_store(store):
     store.reset()
+    time.sleep(0.5)
     store.bootstrap(resource="Patient", show_progress=False)
     store.bootstrap(resource="MedicationRequest", show_progress=False)
-    time.sleep(1)
 
 
 # For now, this class assumes an already existing store exists
