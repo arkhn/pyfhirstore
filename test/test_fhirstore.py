@@ -18,7 +18,6 @@ def reset_store(store):
     store.reset()
     time.sleep(0.5)
     store.bootstrap(resource="Patient", show_progress=False)
-    store.bootstrap(resource="MedicationRequest", show_progress=False)
 
 
 # For now, this class assumes an already existing store exists
