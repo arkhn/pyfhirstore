@@ -8,7 +8,12 @@ from fhirstore import FHIRStore
 
 MONGO_USERNAME = os.getenv("MONGO_USERNAME")
 MONGO_PASSWORD = os.getenv("MONGO_PASSWORD")
-ES_URL = os.getenv("ES_URL")
+
+ES_USERNAME = os.getenv("ES_USERNAME", "elastic")
+ES_PASSWORD = os.getenv("ES_PASSWORD")
+ES_HOST = os.getenv("ES_HOST", "localhost")
+ES_PORT = os.getenv("ES_PORT", 9200)
+ES_URL = f"http://{ES_USERNAME}{':'+ES_PASSWORD if ES_PASSWORD else ''}@{ES_HOST}:{ES_PORT}"
 
 if __name__ == "__main__":
     client = MongoClient(username=MONGO_USERNAME, password=MONGO_PASSWORD)

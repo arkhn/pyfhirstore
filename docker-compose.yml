@@ -20,7 +20,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.4.1
     container_name: elasticsearch
     environment:
-      ELASTIC_PASSWORD: SuperSecurePassword2019
+      ES_PASSWORD: SuperSecurePassword2019
       http.port: 9200
       http.cors.enabled: "true"
       http.cors.allow-origin: "*"

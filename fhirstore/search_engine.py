@@ -15,6 +15,8 @@ from fhirpath.engine import dialect_factory, EngineResultRow
 FHIR_API_URL = os.getenv("FHIR_API_URL", "https://arkhn.com")
 ELASTIC_MAPPING_FILES_DIR = os.getenv("ELASTIC_MAPPING_FILES_DIR")
 
+logger = logging.getLogger(__name__)
+
 
 class ElasticSearchEngine(BaseEngine):
 
@@ -30,7 +32,7 @@ class ElasticSearchEngine(BaseEngine):
 
         # load the ES mappings from static files
         if ELASTIC_MAPPING_FILES_DIR:
-            logging.info(f"Loading ES index from {ELASTIC_MAPPING_FILES_DIR}...")
+            logger.info(f"Loading ES index from {ELASTIC_MAPPING_FILES_DIR}...")
             try:
                 mapping_files = glob(f"{ELASTIC_MAPPING_FILES_DIR}/**.json")
                 for filename in mapping_files:
@@ -49,7 +51,7 @@ class ElasticSearchEngine(BaseEngine):
 
         # load the ES mappings dynamically
         else:
-            logging.info(
+            logger.info(
                 "ELASTIC_MAPPING_FILES_DIR was not found in environment, "
                 "generating mappings dynamically"
             )
@@ -81,7 +83,7 @@ class ElasticSearchEngine(BaseEngine):
         try:
             self.connection._conn.indices.delete(self.get_index_name())
         except ESNotFoundError:
-            logging.warning(f"index {self.get_index_name()} does not exist, skipping...")
+            logger.warning(f"index {self.get_index_name()} does not exist, skipping...")
 
     def create_es_index(self, resource=None):
         body = {
