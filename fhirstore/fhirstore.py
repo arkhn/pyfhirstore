@@ -96,18 +96,6 @@ class FHIRStore:
                     "identifier.system": {"$exists": True},
                 },
             )
-            self.db[resource_type].create_index(
-                [
-                    ("identifier.value", ASCENDING),
-                    ("identifier.type.coding.system", ASCENDING),
-                    ("identifier.type.coding.code", ASCENDING),
-                ],
-                unique=True,
-                partialFilterExpression={
-                    "identifier.value": {"$exists": True},
-                    "identifier.type": {"$exists": True},
-                },
-            )
 
     def normalize_resource(self, resource: Union[Dict, FHIRAbstractModel]) -> FHIRAbstractModel:
         if isinstance(resource, dict):
