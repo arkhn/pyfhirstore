@@ -7,9 +7,9 @@ services:
     container_name: mongo
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: arkhn
-      MONGO_INITDB_ROOT_PASSWORD: SuperSecurePassword2019
-      MONGO_INITDB_DATABASE: fhirstore
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-arkhn}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_NAME:-fhirstore}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     ports:
       - 27017:27017
     volumes:
@@ -20,8 +20,8 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.4.1
     container_name: elasticsearch
     environment:
-      ES_PASSWORD: SuperSecurePassword2019
-      http.port: 9200
+      ELASTIC_PASSWORD: ${ES_PASSWORD}
+      http.port: ${ES_PORT:-9200}
       http.cors.enabled: "true"
       http.cors.allow-origin: "*"
       http.cors.allow-headers: X-Requested-With,X-Auth-Token,Content-Type,Content-Length,Authorization
