@@ -3,7 +3,14 @@
 
 i=0
 while [ $i -lt 20 ]; do
-  curl -s "${ES_URL}/_cluster/health?wait_for_status=yellow&timeout=10s" > /tmp/output
+
+  # check if there is a password defined for elastic
+  if [[ -z "${ES_PASSWORD}" ]]; then
+  curl -s "http://${ES_USERNAME}@${ES_HOST}:${ES_PORT}/_cluster/health?wait_for_status=yellow&timeout=10s" > /tmp/output
+  else
+  curl -s "http://${ES_USERNAME}:${ES_PASSWORD}@${ES_HOST}:${ES_PORT}/_cluster/health?wait_for_status=yellow&timeout=10s" > /tmp/output
+  fi
+
   if [ $? -eq 0 ] && cat /tmp/output | jq -e "select(.timed_out == false)"; then
   docker exec mongo mongo --username=${MONGO_USERNAME} --password=${MONGO_PASSWORD} --eval "rs.initiate()"
   break;
