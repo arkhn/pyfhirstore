@@ -62,7 +62,7 @@ class ElasticSearchEngine(BaseEngine):
     def calculate_field_index_name(self, resource_type):
         return resource_type
 
-    def current_url(self):
+    def current_url(self, query_params):
         """
         complete url from current request
         return yarl.URL"""
