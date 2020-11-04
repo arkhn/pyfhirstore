@@ -64,7 +64,11 @@ class TestFHIRStore:
         res = store.create({"resourceType": "Patient", "contact": [{"name": 1}]})
         assert isinstance(res, OperationOutcome)
         assert len(res.issue) == 1
-        assert res.issue[0].diagnostics == "Validation error: Patient.contact.0.name"
+        assert (
+            res.issue[0].diagnostics
+            == "Value is expected from the instance of <class 'fhir.resources.humanname.HumanName'>"
+            ", but got type <class 'int'>: Patient.contact.0.name.__root__"
+        )
 
     def test_create_resource_dict(self, store: FHIRStore, mongo_client: MongoClient, test_patient):
         """create() correctly inserts a document in the database"""
@@ -143,7 +147,6 @@ class TestFHIRStore:
         assert isinstance(result, OperationOutcome)
         assert len(result.issue) == 1
         assert "Resource Patient pat2 already exists" in result.issue[0].diagnostics
-
 
     ###
     # FHIRStore.read()
