@@ -17,13 +17,13 @@ class FHIRStoreError(Exception):
 
         super().__init__(self.errors)
 
-    def format(self, as_json=False) -> OperationOutcome:
+    def format(self, as_json=False) -> Union[OperationOutcome, dict]:
         issues = [
             {"severity": self.severity, "code": self.code, "diagnostics": err}
             for err in self.errors
         ]
         outcome = OperationOutcome(issue=issues)
-        return outcome.json() if as_json else outcome
+        return outcome.dict() if as_json else outcome
 
 
 class NotSupportedError(FHIRStoreError):
