@@ -66,9 +66,19 @@ def test_search_all_of(store: FHIRStore, index_resources):
 def test_search_as_json(store: FHIRStore, index_resources):
     """Check that the output type is correct
     """
+    # Bundle is returned as a dict
     result = store.search("Patient", params={}, as_json=True)
     assert isinstance(result, dict)
     assert result["total"] == 3
+
+    # OperationOutcome is returned as dict
+    result = store.search("Patient", query_string="kouakou=XXX", as_json=True)
+    assert isinstance(result, dict)
+    assert (
+        result["issue"][0]["diagnostics"] == "No search definition is available for search "
+        "parameter ``kouakou`` on Resource ``Patient``."
+    )
+
 
 
 @pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
