@@ -86,10 +86,7 @@ class FHIRStore:
             self.db[resource_type].create_index("id", unique=True)
             # Add unique constraint on (identifier.system, identifier.value)
             self.db[resource_type].create_index(
-                [
-                    ("identifier.value", ASCENDING),
-                    ("identifier.system", ASCENDING),
-                ],
+                [("identifier.value", ASCENDING), ("identifier.system", ASCENDING),],
                 unique=True,
                 partialFilterExpression={
                     "identifier.value": {"$exists": True},
@@ -318,7 +315,9 @@ class FHIRStore:
         search standard.
         """
         if resource_type and resource_type not in self.resources:
-            return NotSupportedError(f'unsupported FHIR resource: "{resource_type}"').format()
+            return NotSupportedError(f'unsupported FHIR resource: "{resource_type}"').format(
+                as_json
+            )
 
         search_context = SearchContext(self.search_engine, resource_type)
         fhir_search = Search(search_context, query_string=query_string, params=params)
@@ -327,15 +326,15 @@ class FHIRStore:
         except ESNotFoundError as e:
             return NotFoundError(
                 f"{e.info['error']['index']} is not indexed in the database yet."
-            ).format()
+            ).format(as_json)
         except (ESRequestError, ESAuthenticationException) as e:
-            return FHIRStoreError(e.info["error"]["root_cause"]).format()
+            return FHIRStoreError(e.info["error"]["root_cause"]).format(as_json)
         except ESAuthenticationException as e:
-            return FHIRStoreError(e.info["error"]["root_cause"]).format()
+            return FHIRStoreError(e.info["error"]["root_cause"]).format(as_json)
         except pydantic.ValidationError as e:
-            return ValidationError(e).format()
+            return ValidationError(e).format(as_json)
         except fhirpath.exceptions.ValidationError as e:
-            return ValidationError(str(e)).format()
+            return ValidationError(str(e)).format(as_json)
 
     def upload_bundle(self, bundle) -> Union[None, OperationOutcome]:
         """
