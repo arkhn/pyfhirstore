@@ -15,8 +15,9 @@ from fhirpath.engine import dialect_factory, EngineResultRow
 FHIR_API_URL = os.getenv("FHIR_API_URL", "https://arkhn.com")
 ELASTIC_MAPPING_FILES_DIR = os.getenv("ELASTIC_MAPPING_FILES_DIR")
 
-logger = logging.getLogger(__name__)
+IGNORE_ES_SOURCE_FIELDS = ["elastic_index"]
 
+logger = logging.getLogger(__name__)
 
 class ElasticSearchEngine(BaseEngine):
 
@@ -66,7 +67,7 @@ class ElasticSearchEngine(BaseEngine):
         """
         complete url from current request
         return yarl.URL"""
-        return URL(FHIR_API_URL)
+        return URL(FHIR_API_URL).with_query(query_params)
 
     def get_index_name(self):
         """ """
@@ -151,6 +152,8 @@ class ElasticSearchEngine(BaseEngine):
             # performed by ES are always scoped by resource_type.
             # In short, row is an array with a single item.
             for field_index_name, resource_data in res["_source"].items():
+                if field_index_name in IGNORE_ES_SOURCE_FIELDS:
+                    continue
                 row.append({**resource_data, "resourceType": field_index_name})
 
             container.add(row)
