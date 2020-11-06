@@ -112,7 +112,6 @@ class ElasticSearchEngine(BaseEngine):
             "mappings": {
                 "dynamic": False,
                 "properties": {
-                    "elastic_index": {"index": True, "store": True, "type": "keyword"},
                     "id": {"index": True, "store": True, "type": "keyword"},
                 },
             },
