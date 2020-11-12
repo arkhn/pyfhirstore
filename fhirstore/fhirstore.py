@@ -348,6 +348,16 @@ class FHIRStore:
                 f"input must be a FHIR Bundle resource, got {bundle.get('resourceType')}"
             ).format()
 
+        try:
+            res = self.create({**bundle, "entry": []})
+            if isinstance(res, OperationOutcome):
+                logging.error(
+                    f"could not upload bundle {bundle['id']}: "
+                    f"{[i.diagnostics for i in res.issue]}"
+                )
+        except DuplicateKeyError as e:
+            logging.warning(f"Bundle already uploaded: {e}")
+
         for entry in bundle["entry"]:
             if "resource" not in entry:
                 return RequiredError("Bundle entry is missing a resource.")
