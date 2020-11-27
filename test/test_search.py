@@ -964,6 +964,18 @@ def test_searchparam_type_uri_above(store: FHIRStore, index_resources):
     result = store.search("CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/")
     assert_empty_bundle(result)
 
+# CHOICE ELEMENTS
+# Search on choice elements
+@pytest.mark.resources("servicerequest-example-lipid.json", "servicerequest-example-myringotomy.json")
+def test_search_on_choice_elements(store: FHIRStore, index_resources):
+    """ """
+    # occurrenceDateTime
+    result = store.search("ServiceRequest", query_string="occurrence=2013-05-02T16:16:00-07:00")
+    assert result.total == 1
+
+    # occurrencePeriod
+    result = store.search("ServiceRequest", query_string="occurrence=2014-03-12")
+    assert result.total == 1
 
 # SEARCH PARAMETERS MODIFIERS
 # Parameters are defined per resource. Parameter names may specify a modifier as a suffix.
