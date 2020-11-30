@@ -973,9 +973,15 @@ def test_search_on_choice_elements(store: FHIRStore, index_resources):
     result = store.search("ServiceRequest", query_string="occurrence=2013-05-02T16:16:00-07:00")
     assert result.total == 1
 
+    result = store.search("ServiceRequest", query_string="occurrence=2014-05-02T16:16:00-07:00")
+    assert result.total == 0
+
     # occurrencePeriod
     result = store.search("ServiceRequest", query_string="occurrence=2014-03-12")
     assert result.total == 1
+
+    result = store.search("ServiceRequest", query_string="occurrence=2013-03-12")
+    assert result.total == 0
 
 # SEARCH PARAMETERS MODIFIERS
 # Parameters are defined per resource. Parameter names may specify a modifier as a suffix.
