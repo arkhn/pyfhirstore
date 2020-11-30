@@ -335,6 +335,8 @@ class FHIRStore:
             return ValidationError(e).format(as_json)
         except fhirpath.exceptions.ValidationError as e:
             return ValidationError(str(e)).format(as_json)
+        except NotImplementedError as e:
+            return NotSupportedError(str(e)).format(as_json)
 
     def upload_bundle(self, bundle) -> Union[None, OperationOutcome]:
         """

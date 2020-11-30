@@ -28,7 +28,7 @@ class FHIRStoreError(Exception):
 
 class NotSupportedError(FHIRStoreError):
     """
-    NotSupportedError is returned when dealing with FHIR resources which are not supported.
+    NotSupportedError is returned when trying to do something not supported by the targeted API.
     """
 
     def __init__(self, error: str):

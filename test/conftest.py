@@ -41,6 +41,7 @@ def store():
     fhirstore.bootstrap(resource="Observation")
     fhirstore.bootstrap(resource="Patient")
     fhirstore.bootstrap(resource="Practitioner")
+    fhirstore.bootstrap(resource="ServiceRequest")
 
     return fhirstore
 

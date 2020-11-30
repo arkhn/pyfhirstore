@@ -964,6 +964,24 @@ def test_searchparam_type_uri_above(store: FHIRStore, index_resources):
     result = store.search("CodeSystem", query_string="system:above=http://hl7.org/fhir/CodeSystem/")
     assert_empty_bundle(result)
 
+# CHOICE ELEMENTS
+# Search on choice elements
+@pytest.mark.resources("servicerequest-example-lipid.json", "servicerequest-example-myringotomy.json")
+def test_search_on_choice_elements(store: FHIRStore, index_resources):
+    """ """
+    # occurrenceDateTime
+    result = store.search("ServiceRequest", query_string="occurrence=2013-05-02T16:16:00-07:00")
+    assert result.total == 1
+
+    result = store.search("ServiceRequest", query_string="occurrence=2014-05-02T16:16:00-07:00")
+    assert result.total == 0
+
+    # occurrencePeriod
+    result = store.search("ServiceRequest", query_string="occurrence=2014-03-12")
+    assert result.total == 1
+
+    result = store.search("ServiceRequest", query_string="occurrence=2013-03-12")
+    assert result.total == 0
 
 # SEARCH PARAMETERS MODIFIERS
 # Parameters are defined per resource. Parameter names may specify a modifier as a suffix.
@@ -1527,6 +1545,18 @@ def test_searchparam_sort(store: FHIRStore, index_resources):
     result = store.search("Patient", query_string="_sort=address-city,-family")
     result_ids = [entry.resource.id for entry in result.entry]
     assert result_ids == ["b966", "pat2", "pat1"]
+
+
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
+def test_searchparam_fail_sort_several_expressions(store: FHIRStore, index_resources):
+    """We cannot sort on search params that target several leaves.
+    """
+    result = store.search("Patient", query_string="_sort=deceased")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "Cannot sort on search parameters with several expressions."
+    )
 
 
 # PAGE COUNT
