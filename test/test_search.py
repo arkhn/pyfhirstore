@@ -1541,6 +1541,18 @@ def test_searchparam_sort(store: FHIRStore, index_resources):
     assert result_ids == ["b966", "pat2", "pat1"]
 
 
+@pytest.mark.resources("patient-pat1.json", "patient-pat2.json", "patient-b966.json")
+def test_searchparam_fail_sort_several_expressions(store: FHIRStore, index_resources):
+    """We cannot sort on search params that target several leaves.
+    """
+    result = store.search("Patient", query_string="_sort=deceased")
+    assert isinstance(result, OperationOutcome)
+    assert len(result.issue) == 1
+    assert (
+        result.issue[0].diagnostics == "Cannot sort on search parameters with several expressions."
+    )
+
+
 # PAGE COUNT
 # The parameter _count is defined as an instruction to the server regarding how many resources
 # should be returned in a single page.
